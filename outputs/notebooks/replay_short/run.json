@@ -1,0 +1,31 @@
+{
+  "run_name": "replay_short",
+  "profile": "full",
+  "config": "configs\\validation_fast.yaml",
+  "replay_config": "outputs\\notebooks\\replay_config_notebook.yaml",
+  "input_dir": "E:\\OneDrive\\Documents\\IIT PATNA Docs\\SEMESTER III\\CS2105\\RetailOps\\data\\processed",
+  "forecast_file": "outputs\\notebooks\\forecasts.parquet",
+  "start": "2015-11-01",
+  "end": "2015-11-07",
+  "time_limit_s": 15,
+  "config_sha256": "053e53e28820198ca4848de6ac31473f9a91cd80b4fda586cd22de342475598f",
+  "initial_clipped_units": 0.0,
+  "stores": [
+    "CA_1",
+    "CA_2",
+    "CA_3",
+    "CA_4",
+    "TX_1",
+    "TX_2",
+    "TX_3",
+    "WI_1",
+    "WI_2",
+    "WI_3"
+  ],
+  "items": 120,
+  "versions": {
+    "python": "3.14.7",
+    "pandas": "3.0.5",
+    "pulp": "3.3.0"
+  }
+}

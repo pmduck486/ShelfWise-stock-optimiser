@@ -1,0 +1,31 @@
+{
+  "run_name": "holdout_block2",
+  "profile": "full",
+  "config": "configs\\validation_fast_holdout_b2.yaml",
+  "replay_config": "config_holdout_b2.yaml",
+  "input_dir": "E:\\OneDrive\\Documents\\IIT PATNA Docs\\SEMESTER III\\CS2105\\project\\retailops\\data\\processed_holdout_b2",
+  "forecast_file": "data\\processed_holdout_b2\\forecasts.parquet",
+  "start": "2016-02-14",
+  "end": "2016-04-02",
+  "time_limit_s": 15,
+  "config_sha256": "7454adb1f6b60e3514ce9d9024d81500685c472235ec56ad5e48598dc14a635d",
+  "initial_clipped_units": 1.0,
+  "stores": [
+    "CA_1",
+    "CA_2",
+    "CA_3",
+    "CA_4",
+    "TX_1",
+    "TX_2",
+    "TX_3",
+    "WI_1",
+    "WI_2",
+    "WI_3"
+  ],
+  "items": 120,
+  "versions": {
+    "python": "3.14.7",
+    "pandas": "3.0.5",
+    "pulp": "3.3.0"
+  }
+}

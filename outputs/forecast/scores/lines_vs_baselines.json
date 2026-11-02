@@ -1,0 +1,56 @@
+[
+  {
+    "fold": "fold1_festive",
+    "line": "q80",
+    "model": 1.5544642882065087,
+    "naive": 1.970532759942838,
+    "stub": 1.8052849209662678,
+    "beats_naive": true,
+    "beats_stub": true
+  },
+  {
+    "fold": "fold1_festive",
+    "line": "q90",
+    "model": 1.1023187280997213,
+    "naive": 1.397632836802195,
+    "stub": 1.283593876233625,
+    "beats_naive": true,
+    "beats_stub": true
+  },
+  {
+    "fold": "fold1_festive",
+    "line": "q95",
+    "model": 0.7268806478994368,
+    "naive": 0.9635697781776511,
+    "stub": 0.8827475328024416,
+    "beats_naive": true,
+    "beats_stub": true
+  },
+  {
+    "fold": "fold2_main",
+    "line": "q80",
+    "model": 1.5720076364542286,
+    "naive": 2.0767830734747403,
+    "stub": 1.9385038518523243,
+    "beats_naive": true,
+    "beats_stub": true
+  },
+  {
+    "fold": "fold2_main",
+    "line": "q90",
+    "model": 1.0944327623413932,
+    "naive": 1.4641882785688742,
+    "stub": 1.373562686456288,
+    "beats_naive": true,
+    "beats_stub": true
+  },
+  {
+    "fold": "fold2_main",
+    "line": "q95",
+    "model": 0.7115680932477159,
+    "naive": 1.0028043418181074,
+    "stub": 0.9431913365589725,
+    "beats_naive": true,
+    "beats_stub": true
+  }
+]

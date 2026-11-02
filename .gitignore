@@ -1,0 +1,20 @@
+# Python and test caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+
+# CBC solver scratch files (optimize/cbc.py; PuLP deletes them after each solve)
+.cbc_scratch/
+
+# Raw M5 data from Kaggle (large; see data/m5/README.md). calendar.csv is small and is kept.
+data/m5/*.csv
+!data/m5/calendar.csv
+data/m5/*.zip
+
+# Day-by-day replay ledgers (about 9 MB each); every run keeps its kpis.json and results tables
+outputs/**/inventory_ledger.csv
+
+# Never commit a full-history sales file built with --include-holdout
+data/processed*/sales_full.parquet

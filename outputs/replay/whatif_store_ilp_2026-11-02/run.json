@@ -1,0 +1,40 @@
+{
+  "run_name": "whatif_store_ilp_2026-11-02",
+  "config": "configs\\validation_fast.yaml",
+  "forecast_file": "E:\\OneDrive\\Documents\\IIT PATNA Docs\\SEMESTER III\\CS2105\\project\\retailops\\data\\processed\\forecasts.parquet",
+  "method": "store_ilp",
+  "runs": [
+    {
+      "param": "order_model.truck_capacity_cases",
+      "values": [
+        400,
+        100,
+        60
+      ]
+    },
+    {
+      "param": "analysis.store_ilp.space_factor",
+      "values": [
+        1.0,
+        0.5,
+        0.3
+      ]
+    },
+    {
+      "param": "analysis.store_ilp.budget_factor",
+      "values": [
+        1.25,
+        0.6,
+        0.45
+      ]
+    },
+    {
+      "param": "order_model.lost_sale_penalty_share",
+      "values": [
+        1.5,
+        1.0,
+        2.0
+      ]
+    }
+  ]
+}

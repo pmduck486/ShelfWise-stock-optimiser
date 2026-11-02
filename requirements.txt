@@ -1,0 +1,9 @@
+pandas
+numpy
+pyarrow
+pyyaml
+pytest
+scikit-learn
+joblib
+matplotlib
+pulp==3.3.0

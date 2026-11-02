@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "days": 49,
+  "store_balance_checks": 58800,
+  "dc_balance_checks": 11760,
+  "firm_pack_checks": 70560,
+  "truck_checks": 490,
+  "cash_checks": 49,
+  "conservation_checks": 49,
+  "max_residual": 2.9802322387695312e-08,
+  "scope": "Independent chronological reconstruction of saved firm orders, receipts, sales, expected disposal, cash and final pipeline."
+}

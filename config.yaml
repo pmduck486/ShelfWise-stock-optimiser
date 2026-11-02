@@ -1,0 +1,319 @@
+# RetailOps Optimizer - settings file.
+# Every assumed number lives here (no constants in code).
+# Other lumps add their own sections below this one later.
+
+data:
+  m5_dir: data/m5                 # where the raw Walmart M5 CSVs are (relative to this file)
+  processed_dir: data/processed   # where data_prep writes sales.parquet and items.csv
+  category: FOODS                 # M5 category we keep (the project is about food products)
+  stores: [CA_1, CA_2, CA_3, CA_4, TX_1, TX_2, TX_3, WI_1, WI_2, WI_3]   # all 10 M5 stores
+  history_start: "2012-11-26"     # first day read from the sales file (= the warm-up start below)
+  m5_first_day: "2011-01-29"      # first and last day of the M5 sales file (facts about the dataset);
+  m5_last_day: "2016-05-22"       # every window below must fit inside these two days
+
+  # Time windows (plan/forecast-training-plan.md, section 2). Split by date, never shuffled.
+  # prepare.py checks them on every run: in order, no overlap, inside the M5 range.
+  windows:
+    warmup_start: "2012-11-26"    # warm-up: history only (past data for the first training day),
+                                  #   never a training target. Runs until the day before train_start
+    train_start: "2013-01-01"     # train: fitting models
+    train_end: "2015-06-30"
+    val_start: "2015-07-01"       # validation: choosing settings, the honesty check, calibration shift
+    val_end: "2015-10-31"
+    test_start: "2015-11-01"      # test = the 8-week development replay (has Thanksgiving + Christmas).
+    test_end: "2015-12-26"        #   Products and perishables are chosen ONLY on sales before
+                                  #   test_start (rule R5); the last selection day is derived in code
+    holdout_start: "2015-12-27"   # holdout: SEALED. sales.parquet stops the day before this; only the
+    holdout_end: "2016-05-22"     #   one final run reads it (prepare --include-holdout -> sales_full.parquet)
+
+  product_set: main               # main | random  (random sets are used later by layer R1)
+  seed: 1                         # which random seed to use when product_set is random
+
+  # Perishable rule. ASSUMPTION: M5 items are anonymous (no product names), so we treat
+  # the fastest-selling items of department FOODS_3 as a stand-in for "fresh, fast-moving" goods.
+  perishable_dept: FOODS_3
+  # ASSUMPTION: shelf lives (days) handed out in rank order, cycling through this list
+  # (1st perishable gets 2 days, 2nd gets 3, ..., 6th gets 2 again). Non-perishables get none.
+  shelf_life_cycle_days: [2, 3, 4, 5, 7]
+
+  main:
+    n_items: 120                  # top 120 FOODS items by total units (chosen stores, history_start to the day before test_start)
+    n_perishable: 20              # ASSUMPTION: how many of them we flag as perishable
+
+  random:
+    n_stores: 3                   # the seed picks 3 stores ...
+    n_items: 40                   # ... and 40 items
+    n_perishable: 7               # same FOODS_3 rule, scaled down (about 20/120 of 40)
+    seeds: [1, 2, 3, 4, 5]        # the seeds the robustness check (layer R1) runs over
+    min_avg_daily_units: 0.5      # ASSUMPTION: only sample items selling at least this many units
+                                  # per store per day on average, so random sets are not all dead items
+
+# ---------------------------------------------------------------------------
+# Supply network. ASSUMPTION (Lump 2 to confirm): M5 says nothing about warehouses,
+# so we invent two distribution centres (DCs) and give each store one fixed home DC.
+network:
+  dcs: [DC_WEST, DC_EAST]         # ASSUMPTION: two warehouses
+  home_dc:                        # ASSUMPTION: each store is always supplied by this DC
+    CA_1: DC_WEST
+    CA_2: DC_WEST
+    CA_3: DC_WEST
+    CA_4: DC_WEST
+    TX_1: DC_EAST
+    TX_2: DC_EAST
+    TX_3: DC_EAST
+    WI_1: DC_EAST
+    WI_2: DC_EAST
+    WI_3: DC_EAST
+
+# ---------------------------------------------------------------------------
+# Stub files (stubs/make_stubs.py). PLACEHOLDERS so Lump 2 can start before the real
+# forecaster exists. Every number the stub uses is here (no constants in code).
+stubs:
+  horizon_days: 7                 # each forecast origin covers origin .. origin+6
+  lags: [7, 14, 21, 28]           # q50 = mean of units this many days before the target (all >= 7, rule R2)
+  spread_end_lag: 7               # spread = std of daily units over the window ending 7 days before the target
+  spread_window_days: 28          #   ... and 28 days long (target-34 .. target-7)
+  z:                              # q = q50 + z * spread (normal-curve values for 80/90/95%)
+    q80: 0.84
+    q90: 1.28
+    q95: 1.645
+  start_state:
+    avg_window_days: 28           # average daily units over the 28 days before test_start
+    store_stock_days: 3           # ASSUMPTION: each store starts with 3 days of average sales on hand
+    dc_stock_days: 7              # ASSUMPTION: each DC starts with 7 days of its home stores' sales
+  small:                          # Gate 1 test case: 2 stores x 10 products x 1 week
+    stores: [CA_1, TX_1]
+    n_items: 10                   # top 10 items by rank in items.csv
+    days: 7                       # origins = the first 7 days of the test window
+
+# ---------------------------------------------------------------------------
+# ML forecaster (Lump 1). Plan: plan/forecaster-build-plan.md, rules: plan/forecast-training-plan.md.
+# Paths are relative to this file. Every layer below is a switch, off by default:
+# with all switches off the core runs and passes its tests.
+forecast:
+  quantiles: [0.5, 0.8, 0.9, 0.95]
+  horizon_days: 2                 # store-only model (user, 2026-11-02): each origin covers today and
+                                  #   tomorrow (origin .. origin+1). Must not exceed min_lag_days.
+                                  #   Was 7 (origin .. origin+6) before 2026-11-02.
+  min_lag_days: 2                 # rule R2 (changed 2026-11-02, was 7): store data at least 2 days older
+                                  #   than the target, so tomorrow's forecast uses everything known this
+                                  #   morning and one model serves both days
+  lags: [2, 7, 14, 21, 28]        # 2 = newest known day; 7..28 = same weekday 1-4 weeks back
+  baseline_lag_days: 7            # naive baseline = same day last week (unchanged)
+  rolling_windows: [7, 28]        # means; std on the 28-day window; all end min_lag_days before target
+  price_change_weeks: 4
+  baseline_z: {q80: 0.84, q90: 1.28, q95: 1.645}   # baseline: q = q50 + z * 28-day std
+  drop_dates: ["12-25"]           # month-day, dropped from training only
+  closed_dates: ["12-25"]         # month-day, stores closed: all four lines set to 0 (R3) and
+                                  #   these days are left out of every score
+  event_distance_cap_days: 30     # days until / since the nearest event, capped (calendar only, R3)
+  long_zero_run_days: 90          # zero-sales stretches longer than this are dropped from training only
+  drop_long_zero_runs: false      # decision 26 (user, 2026-10-31): keep them in training (fix C), so
+                                  #   the model learns that a long empty stretch usually stays empty
+  dead_item_q50: true             # fix A: q50 = 0 when the 28-day average ending 7 days back is 0
+                                  #   (upper lines keep the model's value, so a returning item gets stock)
+  slow_seller_max_avg_units: 5.0  # items.csv avg_daily_units below this = slow (the order model's
+                                  #   slow_movers rule); for reporting only
+  val_folds:                      # two validation folds, in time order, both before test_start
+    - {name: fold1_festive, train_end: "2014-10-31", val_start: "2014-11-01", val_end: "2014-12-31",
+       peak_days: ["2014-11-26", "2014-12-23", "2014-12-24"]}   # also scored on their own
+    - {name: fold2_main,    train_end: "2015-06-30", val_start: "2015-07-01", val_end: "2015-10-31"}
+  calibration_tolerance_pts: 3    # correct a line only if its coverage is off by more than this
+  seed: 1
+  keep_seeds: [1, 2, 3]            # a logged change can be kept only on the mean of these seeds (fix 2)
+  params: {learning_rate: 0.1, max_iter: 300, max_leaf_nodes: 31, min_samples_leaf: 50}
+  line_params:                    # per-line overrides of params, written by Task 6 (tuning run
+                                  #   2026-10-31, scores/tuning.csv): lowest mean pinball over both
+                                  #   folds among settings not worse than params on either fold,
+                                  #   then confirmed on seeds 1-3. q50's winner (lr 0.05, 400 trees)
+                                  #   lost on fold 1 over 3 seeds (pinball 1.9696 vs 1.9654), so
+                                  #   q50 stays on params
+    q80: {learning_rate: 0.05, max_leaf_nodes: 63, max_iter: 150}
+    q90: {learning_rate: 0.05, max_leaf_nodes: 31, max_iter: 600}
+    q95: {learning_rate: 0.05, max_leaf_nodes: 63, max_iter: 450}
+  tuning_grid:                    # <= 6 combos
+    learning_rate: [0.05, 0.1]
+    max_leaf_nodes: [31, 63]
+    max_iter: [600]               # the curve is read every 50 trees up to 600; each line picks its own count
+  review:                         # Task 5 error review + leak check (reports only, never change the model)
+    worst_n: 20                   # worst store-items listed per fold (error relative to their own sales)
+    shuffle_repeats: 3            # shuffle test: each input scrambled this many times on leak_fold
+    leak_fold: fold2_main
+    leak_mae_floor: 3.6           # q50 MAE below this on leak_fold = suspected leak: a model allowed
+                                  #   yesterday's sales scored 3.62 there in the 2026-10-30 R2 check
+                                  #   (a 2-day-old model scored 3.80 there; unchanged with min_lag_days 2)
+  freeze_platform: Windows        # loophole 6 (user, 2026-10-31): the frozen model and forecasts.parquet
+                                  #   are made on the laptop only (platform.system()); "any" = tests only
+  model_dir: outputs/forecast/model
+  scores_dir: outputs/forecast/scores
+  calendar_file: data/m5/calendar.csv   # calendar for every target day, even after sales end (R3)
+  service_lines:                  # which line each product is stocked to. MIRRORS the order model's
+    perishable: q95               #   proposed order_model.service_levels (Lump 2 owns them); used
+    top_n_staples: {n: 30, line: q95}   # for scoring only. Re-check when her config is merged
+    slow_movers: {below_avg_daily_units: 5, line: q80}
+    default: q90
+  layers:                         # switches, default off
+    p7_empty_shelf: off           # hook in training_rows; does nothing until layer P7 is built
+    random_product_sets: off      # layer B: forecasts for layer R1's random product sets
+    multi_day_totals: off         # layer C (optional, ask the user before building)
+    demand_multiplier: off        # layer M (optional, ask the user before building)
+
+# ===========================================================================
+# Order model (Lump 2) section, copied verbatim from the teammate's final package
+# retailops_final_L2.zip (2026-11-01). Read by optimize/ and examples/.
+# ---------------------------------------------------------------------------
+# L2 order model. These are documented assumptions, not fitted replay results.
+order_model:
+  horizon_days: 7                  # ASSUMPTION: forward planning horizon.
+  integer_days: 1                  # Team boundary: execute only today's integer decisions.
+  lead_time_store_days: 1          # ASSUMPTION: calendar days, DC dispatch to store receipt.
+  lead_time_supplier_days: 5       # ASSUMPTION: calendar days, supplier to DC.
+  solver:
+    time_limit_s: 60               # ASSUMPTION: maximum CBC search time per daily solve.
+    mip_gap: 0.01                  # ASSUMPTION: stop at 1% relative objective gap if reached.
+    feasibility_tolerance: 0.0001   # Numerical tolerance, not permission for physical shortages.
+    log: false
+    warm_start: verified_plan
+    decompose_by_dc: true
+    parallel_time_reserve_s: 5 # Reserve wall time for CBC file I/O and finalization.
+    start_plan_fallback: true
+    replenishment_start: true # Feasible forecast-only starting hint; CBC decisions remain free.
+  case_size_bands: [[6, 6], [15, 12], [30, 24], [.inf, 48]] # ASSUMPTION: inclusive upper bounds.
+  cases_per_pallet: 20             # ASSUMPTION: same pallet packing for every product.
+  store_min_order_cases: 1         # ASSUMPTION: one carton is the smallest activated order.
+  dc_min_order_pallets: 1          # ASSUMPTION: firm integer pallets enforce this minimum.
+  shelf_days: 10                   # ASSUMPTION: nonperishable shelf cover at own-store average.
+  shelf_days_perishable: 4         # ASSUMPTION: perishable shelf cover at own-store average.
+  shelf_min_cases: 2               # ASSUMPTION: base shelf holds at least two cartons.
+  overflow_penalty_share: 0.50     # ASSUMPTION: 50% of item price per excess unit-morning.
+  backroom_capacity_units: null    # Explicit prototype assumption: no finite backroom cap.
+  truck_capacity_cases: 400        # ASSUMPTION: common carton-count loading measure.
+  truck_trip_cost: 40              # ASSUMPTION: USD-equivalent model price units per trip.
+  buy_cost_share_of_price: 0.85     # ASSUMPTION: purchase cost is 85% of reference selling price.
+  holding_rate_per_year: 0.25      # ASSUMPTION: annual charge on acquisition value.
+  holding_days_per_year: 365       # ASSUMPTION: calendar-day conversion of annual rate.
+  order_line_cost: 0.50            # ASSUMPTION: fixed firm order-line cost.
+  service_shortfall_penalty_share: 0.50 # Store terminal deficits too; DC has a separate multiplier.
+  lost_sale_penalty_share: 1.50    # ASSUMPTION: lost-sales managerial penalty.
+  waste_disposal_share: 0.05       # ASSUMPTION: incremental disposal; objective uses 1+share.
+  budget_factor: 1.25              # ASSUMPTION: forward budget vs reference 7-day acquisition value.
+  terminal_store_days: 1           # Approved soft store reserve target.
+  terminal_dc_days: 5              # Approved soft DC inventory-position coverage target.
+  service_levels:                 # Preserved L1 contract and precedence.
+    perishable: 0.95
+    top_n_staples: {n: 30, level: 0.95}
+    slow_movers: {below_avg_daily_units: 5, level: 0.80}
+    default: 0.90
+  calibration:
+    average_window_days: 28        # ASSUMPTION: fixed pre-test local demand reference window.
+    price_window_days: 28          # ASSUMPTION: fixed pre-test item-price reference window.
+    observation_lag_days: 7        # Conservative cutoff at test origin minus seven days.
+    price_aggregation: median_active_store_days # ASSUMPTION: one common price per item.
+    missing_sales_policy: zero     # ASSUMPTION: absent local calendar rows count as zero units.
+    freeze_at: test_start          # Never recalibrate shelves/budgets from test outcomes.
+  calendar:
+    closed_store_month_days: ['12-25'] # Supplied business fact: no store sales/arrivals.
+    closed_dc_month_days: []       # ASSUMPTION: DC dispatch is available every calendar day.
+  initialization:
+    integral_clip_rounding: floor  # ASSUMPTION: integral starting units remain integral after clipping.
+  presentation_stock: false
+  days_of_supply_cap: false
+  order_calendar: false
+  receiving_capacity: false
+  fair_share: false
+  age_tracking: false
+  supply_scenarios: false
+
+  # Core behavioral repairs, derived from dominance arguments; not replay tuning.
+  fulfillment_policy: earlier_service_priority
+  early_service_margin_share: 0.01 # ASSUMPTION: strict per-day priority above safety-stock benefit.
+  postsolve_objective_tolerance: 0.01 # Numerical objective tolerance for continuous correction.
+  warehouse_reserve_policy: daily_inventory_position
+  dc_position_penalty_share: 0.50 # ASSUMPTION: price share per missing unit at intermediate DC coverage checks.
+  terminal_dc_penalty_cost_multiplier: 1.10 # ASSUMPTION: reserve deficit costs more than procurement.
+
+# ===========================================================================
+# Replay (Lump 4). Plan: plan/l4-replay-plan.md. Every assumed number of the 3 simple
+# ordering rules and the scorecard lives here (no constants in replay/). All 4 methods
+# run through the order model's own optimize.replay.execute_day, so physics and
+# accounting are identical. Test window only; the holdout is never loaded (decision #33).
+replay:
+  methods: [last_week, topup_avg, topup_forecast, store_model, store_ilp]   # default --methods.
+                                    #   store_ilp = THE MAIN ORDER MODEL (user, 2026-11-02): store model
+                                    #   targets + one-day store ILP, LP duals = shadow prices (analysis/);
+                                    #   store_model = its rule-only version (newsvendor), kept to compare;
+                                    #   the old optimizer needs warehouse: on and a 7-day forecast)
+  warehouse: off                    # store-only (user, 2026-11-02): off = the warehouse always has stock and
+                                    #   delivers every store order next day; no supplier orders; warehouse
+                                    #   stock and holding are not counted, goods are charged at buy cost when
+                                    #   they reach a store. on = full chain (warehouse kept for later; needs
+                                    #   a forecast covering the 6-day warehouse window)
+  unlimited_warehouse_units: 1000000   # warehouse: off only. Stock each warehouse-item starts with, far above
+                                    #   any 8-week demand, so a store order is never cut
+  forecast_days: 2                  # days per forecast origin the replay expects (= forecast.horizon_days)
+                                    #   with warehouse off; with warehouse on, order_model.horizon_days (7)
+  weeks: 8                          # default replay length from test_start (8 weeks = the test window)
+  input_dir: data/processed         # state_start_*, items.csv, sales for her calibration (load_case);
+                                    #   identical to data/validation for those files (checked 2026-11-01)
+  history_sales_file: data/processed/sales.parquet   # past sales for the simple rules + observed demand,
+                                    #   read with a filter date <= data.windows.test_end (holdout never read)
+  history_days: 35                  # past days handed to a rule on day d: d-35 .. d-1 (never d or later)
+  missing_history_units: 0          # a store-item-day with no sales row counts as this many units
+  exclude_closed_days_from_history: true   # 25 Dec (order_model closed store days) left out of mean/std
+  output_dir: outputs/replay        # outputs/replay/<run_name>/<method>/...
+  test_runs_log: outputs/test_runs.log   # rule R9a: every test-window run appended here
+  independent_audit: true           # rerun her optimize.replay_audit on every method's saved files
+
+  # --- the 3 simple rules (methods 1-3) ---
+  store_review_days: 1              # stores can order every day; cover = today .. the day before the
+                                    #   next order that can arrive (2 days normally; 23 Dec covers to 25 Dec)
+  warehouse_review_days: 1          # warehouse cover = supplier lead time + this = 6 days from today
+  rounding: up                      # top-up need rounded UP to whole cartons / pallets
+  last_week_lag_days: 7             # method 1: a day's demand = recorded sales this many days earlier
+  average_window_days: 28           # method 2: mean and std of the 28 days ending yesterday
+  sigma_ddof: 1                     # method 2: sample standard deviation
+  service_line_by_level:            # product service level (order_model) -> forecast line (method 3)
+    - [0.5, q50]
+    - [0.8, q80]
+    - [0.9, q90]
+    - [0.95, q95]
+  z_by_line: {q50: 0.0, q80: 0.8416, q90: 1.2816, q95: 1.6449}   # method 2 safety factor (normal curve)
+  shortage_split: proportional_largest_remainder   # warehouse short: whole cartons split in proportion
+                                    #   to what each store asked for, largest remainders first
+  budget_rule: scale_down_largest_remainder   # supplier order over the DC budget: every line x (budget/spend),
+                                    #   floored to whole pallets, leftover budget handed out one pallet per
+                                    #   line by largest remainder (floor alone zeroed every 1-pallet line, Gate 1)
+
+  # --- scorecard ---
+  days_per_year: 365                # turnover annualisation
+
+# ===========================================================================
+# Analysis (Lump 3) on the store-only model (2026-11-02). Plan: plan/build-roadmap.md (Lump 3).
+# Settings written down before any run; nothing here is tuned on the test window.
+analysis:
+  store_ilp:                        # method store_ilp = store model targets -> one-day store ILP
+    space_factor: 1.0               # shelf space of a store = this x sum of each product's shelf capacity
+                                    #   (order_model shelf_days / shelf_days_perishable x average sales,
+                                    #   at least shelf_min_cases cartons: the overflow rule of execute_day)
+    budget_factor: 1.25             # daily store budget = this x average daily spend x open cover days
+                                    #   (same factor as the order model's warehouse budget)
+    time_limit_s: 10                # CBC limit per daily solve (the day's ILP is small)
+    mip_gap: 0.0001
+    layers:                         # extra layers on the store ILP (user, 2026-11-02 09:28). Values
+                                    #   written down before any run (_checks/store_ilp_layers/PREREGISTERED.md)
+      service_floor:                # layer 2: stock + order >= share x target for every store-item;
+        enabled: true               #   soft: each missing unit costs gap_penalty_factor x the lost-sale
+        share: 0.9                  #   cost, so the ILP only misses it when a limit leaves no room.
+        gap_penalty_factor: 10      #   Its shadow price = cost of the 90% promise for that item.
+      spoilage_cap_in_ilp: true     # layer 4: the perishable spoilage cap (store model rule 2) becomes an
+                                    #   ILP constraint (stock + order <= q50 over today..today+life)
+      stock_value_cap:              # layer 1, softer: a store's stock value tomorrow morning (incl. today's
+        enabled: false              #   order) <= cover_days x its average daily spend (pooled over items,
+        cover_days: 3               #   not a per-item cap). Kept only if it passes the pre-set test.
+  whatif:                           # python -m analysis.whatif: one setting changed per run, store_ilp,
+    method: store_ilp               #   8 test weeks, store-only. Sensitivity only: never used to pick
+    runs:                           #   settings (no Jul-Oct forecasts exist). First value = the base.
+      - {param: order_model.truck_capacity_cases, values: [400, 100, 60]}
+      - {param: analysis.store_ilp.space_factor, values: [1.0, 0.5, 0.3]}
+      - {param: analysis.store_ilp.budget_factor, values: [1.25, 0.6, 0.45]}
+      - {param: order_model.lost_sale_penalty_share, values: [1.5, 1.0, 2.0]}

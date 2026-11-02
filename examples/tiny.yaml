@@ -1,0 +1,53 @@
+# Hand-checkable checkpoint; these artificial values are not calibrated M5 costs.
+network:
+  dcs: [DC]
+  home_dc: {SHOP: DC}
+order_model:
+  horizon_days: 3
+  integer_days: 1
+  lead_time_store_days: 1
+  lead_time_supplier_days: 5
+  solver: {time_limit_s: 15, mip_gap: 0, feasibility_tolerance: 0.000001, log: false}
+  truck_capacity_cases: 4
+  truck_trip_cost: 0.10
+  order_line_cost: 0.10
+  store_min_order_cases: 1
+  dc_min_order_pallets: 1
+  shelf_days: 10
+  shelf_days_perishable: 4
+  shelf_min_cases: 2
+  overflow_penalty_share: 2.0  # Toy cost per excess unit-morning; not a full-day occupancy integral.
+  backroom_capacity_units: null  # Explicit unlimited-backroom approximation for this checkpoint.
+  service_shortfall_penalty_share: 10.0
+  lost_sale_penalty_share: 20.0
+  waste_disposal_share: 0.05
+  terminal_store_days: 0  # Toy flow case isolates demand; separate tests enable terminal targets.
+  terminal_dc_days: 0
+  calendar:
+    closed_store_month_days: ['12-25']
+    closed_dc_month_days: []  # ASSUMPTION: toy DC can dispatch every calendar day.
+  layers:
+    presentation_stock: false
+    days_of_supply_cap: false
+    order_calendar: false
+    receiving_capacity: false
+    fair_share: false
+    age_tracking: false
+    supply_scenarios: false
+  # Compiled parameter contract internal to L2; production data preparation comes next.
+  parameters:
+    items:
+      STAPLE: {units_per_case: 12, cases_per_pallet: 1, price: 1.0, buy_cost: 1.0, holding_cost_per_unit_day: 0.01, service_level: 0.95, shelf_life_days: null}
+      ZERO: {units_per_case: 6, cases_per_pallet: 1, price: 1.0, buy_cost: 1.0, holding_cost_per_unit_day: 0.01, service_level: 0.80, shelf_life_days: null}
+      FRESH: {units_per_case: 6, cases_per_pallet: 1, price: 1.0, buy_cost: 1.0, holding_cost_per_unit_day: 0.01, service_level: 0.95, shelf_life_days: 2}
+    store_averages:
+      SHOP: {STAPLE: 6.0, ZERO: 0.0, FRESH: 0.0}
+    dc_budgets: {DC: 0.0}
+example:
+  date: '2015-11-01'
+  demand:
+    STAPLE: [0, 18, 0]
+    ZERO: [0, 0, 0]
+    FRESH: [0, 0, 0]
+  store_stock: {STAPLE: 0, ZERO: 0, FRESH: 0}
+  dc_stock: {STAPLE: 24, ZERO: 0, FRESH: 0}

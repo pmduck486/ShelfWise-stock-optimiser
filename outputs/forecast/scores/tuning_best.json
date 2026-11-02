@@ -1,0 +1,26 @@
+{
+  "q50": {
+    "learning_rate": 0.05,
+    "max_iter": 400,
+    "max_leaf_nodes": 31,
+    "min_samples_leaf": 50
+  },
+  "q80": {
+    "learning_rate": 0.05,
+    "max_iter": 150,
+    "max_leaf_nodes": 63,
+    "min_samples_leaf": 50
+  },
+  "q90": {
+    "learning_rate": 0.05,
+    "max_iter": 600,
+    "max_leaf_nodes": 31,
+    "min_samples_leaf": 50
+  },
+  "q95": {
+    "learning_rate": 0.05,
+    "max_iter": 450,
+    "max_leaf_nodes": 63,
+    "min_samples_leaf": 50
+  }
+}

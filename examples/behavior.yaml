@@ -1,0 +1,17 @@
+# Controlled engineering test, not fitting or replaying the real test dataset.
+date: '2015-11-01'
+days: 16                      # More than two supplier lead times.
+horizon_days: 7
+store_lead_days: 1
+supplier_lead_days: 5
+daily_demand: 2
+surprise_day: 8                # Fixed before running the comparison.
+surprise_demand: 4             # Forecast remains 2; only physical execution sees the surprise.
+opening_store_units: 4
+opening_dc_units: 10
+units_per_case: 1              # Isolate reserve incentives from large pallet indivisibilities.
+cases_per_pallet: 1
+price: 1.0
+truck_capacity_cases: 100
+truck_trip_cost: 0.10
+order_line_cost: 0.05
