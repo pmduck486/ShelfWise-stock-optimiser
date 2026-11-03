@@ -12,8 +12,7 @@
 > 🚀 **Live Production Dashboard & What-If Simulation Suite:**  
 > **[https://shelf-wise-stock-optimiser.vercel.app/](https://shelf-wise-stock-optimiser.vercel.app/)**
 >
-> 📊 **Official 12-Slide Final Presentation:**  
-> Located at [`docs/ShelfWise_Final_Presentation.pptx`](docs/ShelfWise_Final_Presentation.pptx) and deep-dive technical monographs in [`docs/`](docs/).
+> 📚 Design decisions and principles are in [`docs/`](docs/).
 
 ---
 
@@ -177,7 +176,7 @@ ShelfWise/
 ├── data_prep/                # Raw Walmart M5 ingest, item selection & perishability flagging
 │   ├── extract.py            # Extracts top 120 FOODS items and assigns shelf lives
 │   └── prepare.py            # Builds sales.parquet with zero-leakage window bounds
-├── docs/                     # Architectural decisions, design principles & presentation
+├── docs/                     # Architectural decisions & design principles
 │   ├── decisions.md          # Comprehensive architectural decisions log (#1 to #43)
 │   ├── design-principles.md  # 19 binding mathematical and engineering principles
 │   └── ...                   # Deep-dive study guides and technical PDF monographs
@@ -307,7 +306,6 @@ ShelfWise enforces strict experimental safeguards to ensure benchmark authentici
   - [x] Duality & Economic Shadow Pricing Analysis
   - [x] Machine Learning Forecasting Engine (Quantile LightGBM)
   - [x] Production Web Dashboard & Interactive What-If Simulation Suite ([Vercel](https://shelf-wise-stock-optimiser.vercel.app/))
-  - [x] 12-Slide Final Presentation ([`docs/ShelfWise_Final_Presentation.pptx`](docs/ShelfWise_Final_Presentation.pptx))
   - [x] Comprehensive Engineering Decisions Log ([`docs/decisions.md`](docs/decisions.md))
 
 ---
