@@ -178,7 +178,6 @@ ShelfWise/
 │   ├── extract.py            # Extracts top 120 FOODS items and assigns shelf lives
 │   └── prepare.py            # Builds sales.parquet with zero-leakage window bounds
 ├── docs/                     # Architectural decisions, design principles & presentation
-│   ├── ShelfWise_Final_Presentation.pptx # Official 12-slide project presentation
 │   ├── decisions.md          # Comprehensive architectural decisions log (#1 to #43)
 │   ├── design-principles.md  # 19 binding mathematical and engineering principles
 │   └── ...                   # Deep-dive study guides and technical PDF monographs
