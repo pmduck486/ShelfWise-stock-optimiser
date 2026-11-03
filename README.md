@@ -1,315 +1,691 @@
-# ShelfWise: Autonomous Multi-Store Retail Replenishment & Inventory Optimization Engine
+ShelfWise — Autonomous Multi-Store Retail Replenishment & Inventory Optimization Engine
 
-**CS2105: Optimization Techniques Course Project — Indian Institute of Technology Patna (IIT Patna), Semester III**
+<p align="center">
+  <strong>Predict Smarter. Optimize Inventory. Minimize Waste.</strong>
+</p><p align="center">
+  An intelligent, closed-loop retail inventory optimization system combining Quantile Machine Learning, Newsvendor Theory, Mixed-Integer Linear Programming, and LP Duality to make cost-efficient replenishment decisions across multiple retail stores.
+</p><p align="center">
+  <a href="https://shelf-wise-stock-optimiser.vercel.app/"><strong>🚀 Live Dashboard</strong></a> •
+  <a href="https://github.com/pmduck486/ShelfWise-stock-optimiser"><strong>💻 GitHub Repository</strong></a>
+</p><p align="center">
+  <img src="https://img.shields.io/badge/Institution-IIT%20Patna-blue" />
+  <img src="https://img.shields.io/badge/Course-CS2105-orange" />
+  <img src="https://img.shields.io/badge/Python-3.11%20%7C%203.14-blue?logo=python" />
+  <img src="https://img.shields.io/badge/Frontend-React%2018-61DAFB?logo=react" />
+  <img src="https://img.shields.io/badge/Optimization-MILP%20%7C%20LP-success" />
+  <img src="https://img.shields.io/badge/Solver-COIN--OR%20CBC-orange" />
+  <img src="https://img.shields.io/badge/Tests-299%20Passed-brightgreen" />
+</p>---
 
-[![Live Dashboard](https://img.shields.io/badge/Live%20Dashboard-Vercel-success?style=for-the-badge&logo=vercel)](https://shelf-wise-stock-optimiser.vercel.app/)
-[![Course](https://img.shields.io/badge/IIT%20Patna-CS2105%20Optimization%20Techniques-blue?style=for-the-badge)](https://www.iitp.ac.in/)
-[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![React](https://img.shields.io/badge/Frontend-React%2018%20%2B%20Tailwind%204%20%2B%20Motion-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://shelf-wise-stock-optimiser.vercel.app/)
-[![Solvers](https://img.shields.io/badge/MILP%20Solver-COIN--OR%20CBC%20%2F%20PuLP-orange?style=for-the-badge)](https://github.com/coin-or/Cbc)
-[![Tests](https://img.shields.io/badge/Test%20Suite-299%20Passed-brightgreen?style=for-the-badge)](https://pytest.org/)
+📖 Table of Contents
 
-> 🚀 **Live Production Dashboard & What-If Simulation Suite:**  
-> **[https://shelf-wise-stock-optimiser.vercel.app/](https://shelf-wise-stock-optimiser.vercel.app/)**
->
-> 📚 Design decisions and principles are in [`docs/`](docs/).
-
----
-
-## 📌 Executive Summary
-
-Every morning, modern grocery retail chains face a multi-million-dollar dilemma across hundreds of stores:
-- **Under-order**, and shelves go empty: customer demand is unserved, brand loyalty degrades, and high-margin sales are lost permanently.
-- **Over-order**, and shelves overflow: working capital is locked in excess inventory, storage thresholds are breached, and perishable food spoils in backrooms.
-
-**ShelfWise** is a production-grade, closed-loop daily inventory replenishment and supply chain optimization engine. Operating on the real-world **Walmart M5 benchmark dataset** (Kaggle), ShelfWise governs **10 retail superstores** across California, Texas, and Wisconsin over **120 high-velocity food products** (including 20 perishable fresh lines with dynamic shelf-life decay).
-
-ShelfWise replaces naive inventory heuristics with a mathematically principled two-tier architecture:
-1. **Asymmetric Quantile Machine Learning (`forecast/`):** A LightGBM gradient-boosted quantile regression engine predicting $q_{50}, q_{80}, q_{90}, q_{95}$ demand distributions under a strict 2-day informational lag barrier (zero data leakage).
-2. **Constrained Mixed-Integer Linear Programming (`analysis/store_ilp.py`):** Daily store-level Mixed-Integer Linear Programs (MILP) solved via COIN-OR CBC that turn continuous Newsvendor critical ratios into discrete, whole-carton orders under physical truck capacities, volumetric shelf bounds, working capital limits, soft service floors, and perishable spoilage throttles.
-3. **Exact Shadow Pricing via LP Dual Relaxation:** Re-solving the optimal integer commitments as a continuous Linear Program (LP) to extract exact dual shadow prices ($\lambda_{\text{truck}}, \lambda_{\text{space}}, \lambda_{\text{budget}}, \lambda_{\text{floor}}$), pinpointing the precise marginal economic value of expanding physical constraints.
-4. **Decoupled Lead-Time Aware Holiday Policy:** A festival surge and post-holiday slump throttling layer that pre-builds inventory for holiday spikes while suppressing perishable spoilage by **80.6%** during post-holiday slumps without risking dry-good stockouts.
-
----
-
-## 🏆 Key Benchmark Results
-
-ShelfWise was evaluated through an 8-week test window and two strictly sealed holdout blocks (spanning 150+ simulated days) against classical retail heuristics:
-- **`habit`**: Repeat same-day sales from last week.
-- **`topup_avg`**: Top up to a 28-day rolling average with safety stock.
-- **`topup_forecast`**: Point-forecast top-up policy.
-- **`store_model`**: Unconstrained Newsvendor critical fractile orders.
-- **`store_ilp` (ShelfWise)**: Discrete MILP carton allocation + LP dual shadow pricing.
-
-### Performance Summary Across Evaluation Periods
-
-| Evaluation Window | Timeframe | ShelfWise Fill Rate | Dumpster Waste (Units) | Net Cost + Lost Sales Penalty | Improvement vs Best Heuristic |
-|:---|:---|:---:|:---:|:---:|:---:|
-| **Test Window (Core ILP)** | 1 Nov 2015 – 26 Dec 2015 (8 wks) | **94.87%** | **8,043** | **$934,088** | **−7.7%** vs best simple rule |
-| **Test Window (+ Layers)** | 1 Nov 2015 – 26 Dec 2015 (8 wks) | **94.96%** | **7,015** | **$932,094** | **−7.9%** vs best simple rule |
-| **Sealed Holdout Block 1** | 27 Dec 2015 – 13 Feb 2016 (7 wks) | **94.14%** | **4,469** | **$855,095** | **−5.2%** vs best simple rule |
-| **Sealed Holdout Block 2** | 14 Feb 2016 – 2 Apr 2016 (7 wks) | **95.40%** | **5,465** | **$887,087** | **−7.1%** vs best simple rule |
-| **Sealed Holdout Block 3** | 3 Apr 2016 – 22 May 2016 (7 wks) | *Sealed* | *Sealed* | *Sealed* | *Virgin Holdout* |
-
-### Why Naive Rules Fail
-- Classical heuristics like `topup_avg` and `topup_forecast` achieve high availability (95–98%) only by drowning stores in excess stock, generating **35,000 to 70,800+ spoiled units** per block.
-- ShelfWise slashes waste to **4,400–7,000 units** (an **80% to 90% reduction in food spoilage**) while sustaining a rock-solid **~95% service fill rate** and saving \$60,000–\$80,000+ per quarter.
+1. "Overview" (#-overview)
+2. "The Problem" (#-the-problem)
+3. "Our Solution" (#-our-solution)
+4. "Key Features" (#-key-features)
+5. "System Architecture" (#-system-architecture)
+6. "Mathematical Formulation" (#-mathematical-formulation)
+7. "Technology Stack" (#-technology-stack)
+8. "Benchmark Results" (#-benchmark-results)
+9. "Interactive Dashboard" (#-interactive-dashboard)
+10. "Repository Structure" (#-repository-structure)
+11. "Installation and Setup" (#-installation-and-setup)
+12. "Running the Project" (#-running-the-project)
+13. "Experimental Methodology" (#-experimental-methodology)
+14. "Academic Concepts Demonstrated" (#-academic-concepts-demonstrated)
+15. "Future Scope" (#-future-scope)
+16. "Course Information" (#-course-information)
 
 ---
 
-## 🏗️ System Architecture & Workflow
+🚀 Overview
 
-```mermaid
+Retail inventory management is a complex optimization problem involving uncertain customer demand, limited storage capacity, transportation constraints, procurement budgets, and product perishability.
+
+Traditional replenishment strategies often rely on historical averages or fixed safety-stock rules. Although these approaches can maintain product availability, they frequently result in excessive inventory, unnecessary procurement costs, and substantial food wastage.
+
+ShelfWise is an autonomous multi-store inventory replenishment and optimization engine designed to address these challenges.
+
+Built using the Walmart M5 Forecasting benchmark dataset, ShelfWise simulates inventory management across:
+
+- 10 retail stores
+- 120 high-velocity food products
+- 20 perishable product categories
+- Multiple retail locations across California, Texas, and Wisconsin
+- Daily replenishment decisions over extended simulation periods
+
+The system combines machine learning-based demand forecasting with mathematical optimization to determine how much inventory each store should order every day.
+
+Unlike conventional forecasting dashboards, ShelfWise does not stop at predicting demand. It converts predictions into physically feasible, cost-efficient, whole-carton procurement decisions.
+
+The Core Innovation
+
+ShelfWise follows a two-stage decision-making architecture:
+
+Stage 1 — Predict Demand
+
+A quantile-based LightGBM forecasting engine estimates multiple demand scenarios:
+
+- q50: Median demand
+- q80: Higher-demand scenario
+- q90: High-demand scenario
+- q95: Conservative high-service scenario
+
+Stage 2 — Optimize Replenishment
+
+A Mixed-Integer Linear Programming model determines optimal order quantities while considering:
+
+- Truck capacity
+- Shelf-space availability
+- Procurement budget
+- Minimum service-level requirements
+- Product shelf life
+- Inventory holding and disposal costs
+
+The resulting decisions are evaluated through a closed-loop inventory simulation and independently audited.
+
+---
+
+🎯 The Problem
+
+Retailers face two major inventory management challenges.
+
+1. Understocking
+
+When demand exceeds available inventory:
+
+- Products become unavailable.
+- Potential sales are lost.
+- Customer satisfaction decreases.
+- Revenue and profit margins are affected.
+
+2. Overstocking
+
+When inventory exceeds actual demand:
+
+- Excess capital remains locked in stock.
+- Storage capacity is wasted.
+- Perishable products expire.
+- Disposal and operational costs increase.
+
+Why Traditional Approaches Are Insufficient
+
+Traditional Strategy| Limitation
+Last-week sales| Cannot adapt to changing demand
+Historical averages| Ignores demand uncertainty
+Fixed safety stock| Often produces excessive inventory
+Point-forecast replenishment| Does not adequately model uncertainty
+Unconstrained Newsvendor| Ignores physical procurement constraints
+
+Our objective: Maintain approximately 95% product availability while minimizing total operational cost and unnecessary inventory waste.
+
+---
+
+💡 Our Solution
+
+ShelfWise introduces an integrated forecasting and optimization pipeline.
+
+Component| Responsibility
+Demand Forecasting| Predict future demand using quantile LightGBM
+Newsvendor Model| Determine economically optimal service targets
+Perishability Engine| Control inventory according to product shelf life
+Holiday Policy| Handle festival demand surges and post-holiday slumps
+MILP Optimizer| Generate feasible whole-carton replenishment decisions
+LP Dual Analysis| Calculate marginal economic values of constraints
+Replay Engine| Simulate daily inventory movement
+Independent Auditor| Verify inventory conservation and operational feasibility
+Web Dashboard| Visualize decisions, performance, and what-if scenarios
+
+---
+
+✨ Key Features
+
+1. Quantile-Based Demand Forecasting
+
+ShelfWise uses LightGBM gradient-boosted quantile regression to predict demand at multiple confidence levels.
+
+Instead of generating only one demand estimate, the forecasting engine produces a distribution of possible demand outcomes.
+
+This allows the replenishment optimizer to account for uncertainty and different stockout-versus-overstock trade-offs.
+
+Forecast quantiles: q50, q80, q90, q95.
+
+2. Newsvendor-Based Inventory Targets
+
+The Newsvendor model determines an economically appropriate inventory target based on underage and overage costs.
+
+[
+\tau^*=\frac{C_u}{C_u+C_o}
+]
+
+Where:
+
+- (C_u): Cost of understocking.
+- (C_o): Cost of overstocking.
+- (\tau^*): Optimal critical fractile.
+
+ShelfWise uses a target critical fractile of approximately 0.63 for perishable products.
+
+3. Mixed-Integer Linear Programming
+
+The optimizer converts inventory targets into discrete procurement decisions.
+
+It considers real-world operational restrictions rather than assuming unlimited procurement capacity.
+
+4. Perishable Inventory Management
+
+Fresh products require different replenishment strategies from shelf-stable goods.
+
+ShelfWise implements dynamic spoilage caps based on predicted consumption over the product's remaining shelf life.
+
+5. Holiday-Aware Replenishment
+
+The system incorporates two distinct seasonal policies:
+
+- Pre-holiday demand surge preparation.
+- Post-holiday inventory reduction to prevent unnecessary perishable stock accumulation.
+
+6. LP Duality and Shadow Pricing
+
+After obtaining the integer procurement decisions, ShelfWise performs a continuous LP analysis to estimate the marginal economic value of relaxing operational constraints.
+
+This provides insights into whether additional truck capacity, storage space, or procurement budget would improve the system.
+
+7. Closed-Loop Simulation and Auditing
+
+Every replenishment decision is evaluated through a daily inventory replay engine.
+
+An independent audit verifies physical inventory conservation, carton quantities, and operational constraints.
+
+---
+
+🏗️ System Architecture
+
+ShelfWise consists of six interconnected layers.
+
 flowchart TD
-    subgraph Data Layer ["1. Data & Feature Engineering"]
-        M5["Walmart M5 Dataset (Kaggle)<br/>10 Stores × 120 Food Products"] --> Prep["data_prep / Feature Extraction<br/>Calendar, Rolling Lags (2, 7, 14, 21, 28)"]
-        Prep --> LeakCheck["Strict 2-Day Lag Barrier (R2)<br/>Zero Future Leakage Guarantee"]
-    end
+    A["Walmart M5 Dataset"] --> B["Data Preparation & Feature Engineering"]
 
-    subgraph Forecaster ["2. Quantile ML Engine (forecast/)"]
-        LeakCheck --> LGBM["Quantile LightGBM Regressors<br/>q50, q80, q90, q95 Horizon = 2 Days"]
-        LGBM --> Calib["Pinball Loss & Coverage Calibration<br/>Model Weights Frozen & Checksummed"]
-    end
+    B --> C["Quantile LightGBM Forecasting"]
+    C --> D["Newsvendor Target Generation"]
 
-    subgraph Target Layer ["3. Newsvendor Target Generation"]
-        Calib --> NV["Critical Ratio Targets<br/>• Shelf-Stable: q95 Line<br/>• Perishables: Cu/(Cu+Co) ≈ 0.63"]
-        NV --> SpoilCap["Perishable Spoilage Cap<br/>Stock + Order <= Cumulative q50 over Shelf Life"]
-        NV --> HolidayPolicy["Decoupled Holiday Surge & Valley Layer<br/>• T-3 to T-1: Surge Multiplier M_surge<br/>• T+1 to T+2: Perishable Spoilage Choke"]
-    end
+    D --> E["Perishable Inventory Controls"]
+    D --> F["Holiday Demand Policy"]
 
-    subgraph Optimization ["4. Mixed-Integer Linear Program (analysis/store_ilp.py)"]
-        SpoilCap --> MILP["COIN-OR CBC Daily Store MILP<br/>Min Total Operational Cost"]
-        HolidayPolicy --> MILP
-        Truck["Truck Capacity (400 cases)"] --> MILP
-        Space["Shelf Volume Constraints"] --> MILP
-        Budget["Store Daily Budget"] --> MILP
-        Floor["Soft 90% Service Floor"] --> MILP
-        MILP --> Cartons["Optimal Discrete Carton Orders (x_i)"]
-    end
+    E --> G["Daily Store MILP Optimizer"]
+    F --> G
 
-    subgraph Dual Pricing ["5. LP Dual Shadow Pricing"]
-        Cartons --> LP["Continuous LP Relaxation<br/>Fixed Integer Basis"]
-        LP --> Duals["Shadow Prices (λ_truck, λ_space, λ_budget, λ_floor)<br/>Marginal Economic Value of Relaxing Limits"]
-    end
+    H["Truck Capacity"] --> G
+    I["Shelf Space"] --> G
+    J["Procurement Budget"] --> G
+    K["Service-Level Requirements"] --> G
 
-    subgraph Verification ["6. Execution & Closed-Loop Audit"]
-        Cartons --> Sim["Daily Replay Engine (replay/)<br/>Physical Inventory Ledger & Decay"]
-        Sim --> Audit["Independent Accounting Audit<br/>Rule Check & Ledger Verification"]
-        Audit --> Dash["Interactive Web Dashboard<br/>Vercel Production Deployment"]
-    end
-```
+    G --> L["Optimal Carton Orders"]
 
----
+    L --> M["LP Dual Shadow Pricing"]
+    L --> N["Daily Inventory Replay"]
 
-## 📐 Mathematical Formulation
+    N --> O["Independent Audit"]
+    M --> P["Performance Analytics"]
+    O --> P
 
-### 1. Newsvendor Target Calibration
-For perishable products with unit underage cost $C_u$ (lost margin plus stockout penalty) and unit overage cost $C_o$ (purchase cost plus holding and disposal fees):
-$$\text{Critical Fractile } \tau^* = \frac{C_u}{C_u + C_o} \approx 0.63$$
-- **Perishable items**: Targeted between $q_{50}$ and $q_{80}$ according to $\tau^*$, bounded by a dynamic spoilage cap:
-  $$\text{Stock}_{i,t} + x_i \cdot \text{pack}_i \le \sum_{k=0}^{\text{shelf\_life}_i - 1} \hat{q}_{50, i, t+k}$$
-- **Non-perishable items**: Targeted directly to high-reliability service fractile $\hat{q}_{95, i, t}$.
+    P --> Q["Interactive Web Dashboard"]
 
-### 2. Daily Store Mixed-Integer Linear Program (MILP)
-Every morning, for each store $s$, ShelfWise solves:
+Workflow Explanation
 
-$$\min \sum_{i} \left( c_i x_i \cdot \text{pack}_i + c_{\text{line}} y_i + h_i \cdot I_{i, t+1} + \pi_i \cdot \text{Shortfall}_i + \gamma_i \cdot \text{Waste}_i \right) + c_{\text{truck}} \cdot T$$
-
-**Subject to:**
-1. **Integer Carton Quantization:**
-   $$x_i \in \mathbb{Z}_{\ge 0}, \quad x_i \le M \cdot y_i, \quad y_i \in \{0, 1\}$$
-2. **Truck Capacity Limit:**
-   $$\sum_{i} x_i \le C_{\text{truck}} \cdot T, \quad T \in \mathbb{Z}_{\ge 0} \quad (C_{\text{truck}} = 400 \text{ cartons})$$
-3. **Volumetric Shelf-Space Limit:**
-   $$\sum_{i} v_i \left( \text{Stock}_{i, t} + x_i \cdot \text{pack}_i \right) \le V_{\text{store}}$$
-4. **Daily Procurement Budget:**
-   $$\sum_{i} c_i x_i \cdot \text{pack}_i \le B_{\text{store}}$$
-5. **Soft Service Floor (90% Guarantee):**
-   $$\text{Stock}_{i, t} + x_i \cdot \text{pack}_i + \text{Slack}_{i} \ge 0.90 \cdot \text{Target}_{i, t}$$
-6. **Perishable Spoilage Throttling:**
-   $$\text{Stock}_{i, t} + x_i \cdot \text{pack}_i \le \text{Cap}_{i, t}^{\text{spoilage}}$$
-
-### 3. LP Dual Relaxation & Shadow Pricing
-After solving the MILP, the discrete decision variables $x_i$ and $T$ are fixed to their integer solutions, and the problem is re-solved as a continuous Linear Program:
-$$\lambda_{\text{truck}} = \frac{\partial \text{Cost}^*}{\partial C_{\text{truck}}}, \quad \lambda_{\text{space}} = \frac{\partial \text{Cost}^*}{\partial V_{\text{store}}}, \quad \lambda_{\text{budget}} = \frac{\partial \text{Cost}^*}{\partial B_{\text{store}}}, \quad \lambda_{\text{floor}, i} = \frac{\partial \text{Cost}^*}{\partial \text{Floor}_i}$$
-These dual multipliers quantify the exact dollar savings obtainable if warehouse trucks, shelf allocations, or working capital were expanded by one unit.
+1. Data Ingestion: Historical Walmart M5 sales, item information, and calendar data are processed.
+2. Feature Engineering: Lag features, rolling statistics, and calendar features are generated.
+3. Demand Forecasting: Quantile LightGBM models estimate future demand.
+4. Target Generation: Newsvendor theory converts demand predictions into inventory targets.
+5. Optimization: The MILP determines feasible procurement quantities.
+6. Economic Analysis: LP dual variables estimate marginal constraint values.
+7. Simulation: The replay engine updates inventory, sales, and spoilage.
+8. Verification: The independent auditor validates the results.
+9. Visualization: The dashboard presents the complete decision-making process.
 
 ---
 
-## 🌐 Interactive Web Dashboard
+📐 Mathematical Formulation
 
-ShelfWise features a reactive web application deployed live on Vercel:
+1. Newsvendor Model
 
-🔗 **[https://shelf-wise-stock-optimiser.vercel.app/](https://shelf-wise-stock-optimiser.vercel.app/)**
+The optimal critical fractile is:
 
-### Dashboard Pages & Features
-1. **Executive Overview (`#/overview`):** High-level KPI tickers, side-by-side cost and fill comparisons across all 5 methods, and period selectors (Test Window, Holdout 1, Holdout 2).
-2. **8-Week Workflow Calendar (`#/workflow`):** Interactive calendar heatmaps for each day of the 56-day replay, colored by daily fill rates, featuring event tags, Thanksgiving/Christmas alerts, and rolling automated replay playback.
-3. **Day Decision Theatre (`#/day`):** Microscopic step-by-step diagnostic view for any store-item-day across 66,000+ simulation instances. Inspects the forecast ladder, Newsvendor target calculation, carton quantization options, physical constraints, and final inventory trajectory.
-4. **Forecast Explorer (`#/forecast`):** Fan charts comparing $q_{50}, q_{80}, q_{90}, q_{95}$ prediction bands against ground-truth actuals, complete with pinball loss metrics and empirical coverage calibration stats.
-5. **Shadow Prices & What-If Simulation (`#/shadow`):** Continuous mathematical simulation sliders for shelf space factor ($0.10\times$ to $1.00\times$), daily budget factor ($0.10\times$ to $1.25\times$), and truck capacity (10 to 400 cases). Powered by monotonic cubic Hermite splines anchored directly to 19 empirical solver evaluations, providing live shadow price readouts and constraint pressure indicators.
-6. **Optimization Layers (`#/layers`):** Preregistered keep/drop ablation matrix detailing the impact of adding service floors, spoilage caps, and stock caps.
-7. **How It Works Pipeline (`#/how-it-works`):** End-to-end interactive mathematical and architectural breakdown of the ShelfWise engine.
+[
+\tau^*=\frac{C_u}{C_u+C_o}
+]
+
+For perishable products, the target is selected between the relevant forecast quantiles according to the critical fractile.
+
+For non-perishable products, ShelfWise uses a higher service-level demand target based on q95.
+
+2. Perishable Inventory Constraint
+
+Inventory should not exceed the predicted consumption over its remaining shelf life.
+
+[
+Stock_{i,t}+x_i\cdot pack_i
+\leq
+\sum_{k=0}^{L_i-1}\hat q_{50,i,t+k}
+]
+
+Where:
+
+- (Stock_{i,t}): Existing inventory.
+- (x_i): Number of cartons ordered.
+- (pack_i): Units per carton.
+- (L_i): Remaining shelf life.
+- (\hat q_{50,i,t+k}): Median forecast demand.
+
+3. Mixed-Integer Linear Programming
+
+The daily replenishment problem minimizes:
+
+[
+\begin{aligned}
+\min \quad
+&\sum_i \big[
+c_i x_i pack_i+c_{line}y_i\
+&+h_i I_{i,t+1}
++\pi_i Shortfall_i
++\gamma_i Waste_i
+\big]\
+&+c_{truck}T
+\end{aligned}
+]
+
+Subject to the following operational constraints.
+
+A. Integer Carton Quantization
+
+[
+x_i\in\mathbb Z_{\geq0}
+]
+
+[
+x_i\leq My_i,\qquad y_i\in{0,1}
+]
+
+B. Truck Capacity
+
+[
+\sum_i x_i\leq400T
+]
+
+C. Shelf-Space Capacity
+
+[
+\sum_i v_i(Stock_{i,t}+x_i pack_i)
+\leq V_{store}
+]
+
+D. Procurement Budget
+
+[
+\sum_i c_i x_i pack_i\leq B_{store}
+]
+
+E. Soft Service-Level Constraint
+
+[
+Stock_{i,t}+x_i pack_i+Slack_i
+\geq0.90Target_{i,t}
+]
+
+F. Perishable Spoilage Constraint
+
+[
+Stock_{i,t}+x_i pack_i
+\leq Cap_{i,t}^{spoilage}
+]
+
+The COIN-OR CBC solver finds the optimal feasible procurement decisions.
+
+4. LP Duality and Shadow Pricing
+
+Once the MILP solution is obtained, the integer decisions are fixed and the continuous LP is solved to extract dual values.
+
+[
+\lambda_{truck}
+
+\frac{\partial Cost^*}{\partial C_{truck}}
+]
+
+[
+\lambda_{space}
+
+\frac{\partial Cost^*}{\partial V_{store}}
+]
+
+[
+\lambda_{budget}
+
+\frac{\partial Cost^*}{\partial B_{store}}
+]
+
+These values represent marginal changes in the continuous relaxation's optimal objective under the corresponding constraint perturbations.
+
+Important: These LP dual values are not necessarily the exact marginal changes in the original integer MILP objective.
 
 ---
 
-## 📁 Repository Directory Structure
+📊 Benchmark Results
 
-```text
+ShelfWise was evaluated against four classical replenishment strategies across the core test window and two sealed holdout blocks.
+
+Performance Comparison
+
+Evaluation Period| Fill Rate| Waste (Units)| Net Cost
+Core ILP| 94.87%| 8,043| $934,088
+Core ILP + Additional Layers| 94.96%| 7,015| $932,094
+Holdout Block 1| 94.14%| 4,469| $855,095
+Holdout Block 2| 95.40%| 5,465| $887,087
+
+Performance Against Baselines
+
+Baseline| Strategy
+habit| Repeat last week's sales
+topup_avg| Replenish using a 28-day rolling average
+topup_forecast| Point-forecast-based replenishment
+store_model| Unconstrained Newsvendor replenishment
+store_ilp| ShelfWise constrained MILP optimization
+
+Key Observations
+
+- Maintains approximately 95% fill rate across evaluated periods.
+- Reduces excess inventory waste compared with the reported heuristic baselines.
+- Achieves reported net-cost improvements of 5.2%–7.9% across the evaluated windows.
+- Incorporates operational constraints that conventional replenishment rules generally ignore.
+
+Experimental note: All reported figures are based on the project's simulation accounting and benchmark configuration. They should not be interpreted as independently verified real-world retail savings.
+
+---
+
+🌐 Interactive Dashboard
+
+Explore the live application:
+
+"🚀 Open ShelfWise Dashboard" (https://shelf-wise-stock-optimiser.vercel.app/)
+
+The dashboard provides seven major interactive modules.
+
+Dashboard Module| Description
+Executive Overview| Compare fill rates, waste, and operational costs
+Workflow Calendar| Explore daily replenishment performance
+Day Decision Theatre| Inspect individual store-item-day decisions
+Forecast Explorer| Visualize quantile forecasts and actual demand
+Shadow Prices & What-If| Simulate budget, space, and truck-capacity changes
+Optimization Layers| Compare optimization-layer ablations
+How It Works| Understand the complete mathematical pipeline
+
+What-If Simulation
+
+The dashboard includes interactive controls for:
+
+- Shelf-space factor: 0.10× to 1.00×
+- Procurement budget factor: 0.10× to 1.25×
+- Truck capacity: 10 to 400 cartons
+
+The sensitivity interface uses monotonic cubic Hermite interpolation anchored to 19 empirical solver evaluations.
+
+---
+
+🛠️ Technology Stack
+
+Layer| Technologies
+Programming Language| Python 3.11 / 3.14
+Machine Learning| LightGBM, Quantile Regression
+Optimization| PuLP, Mixed-Integer Linear Programming
+Solver| COIN-OR CBC
+Mathematical Analysis| Linear Programming, Duality, Shadow Pricing
+Data Processing| Pandas, NumPy, Parquet
+Testing| Pytest
+Frontend| React 18, TypeScript
+Styling| Tailwind CSS 4
+Animation| Motion
+Build Tool| Vite
+Deployment| Vercel
+Visualization| Interactive charts and custom simulation components
+
+---
+
+📁 Repository Structure
+
 ShelfWise/
-├── analysis/                 # MILP formulation, shadow prices & what-if analyses
-│   ├── store_ilp.py          # Daily store Mixed-Integer Linear Program (PuLP / CBC)
-│   ├── whatif.py             # Replay sensitivity grid runner across physical limits
-│   └── holiday_calibration.py# Pre-holiday surge & post-holiday valley parameter fitting
-├── configs/                  # Hardware profiles and solver configuration presets
-│   ├── validation_fast.yaml  # 15s solver limit profile for rapid CI & validation
-│   └── ...
-├── dashboard/                # Modern React 18 + TypeScript + Tailwind 4 frontend
-│   ├── src/                  # React components, pages, Hermite spline simulation engine
-│   ├── public/data/          # 189 precomputed deterministic JSON datasets (21 MB)
-│   ├── export_data.py        # Python ETL script generating frontend JSON datasets
-│   ├── test_export.py        # Pytest test suite validating JSON export fidelity
-│   └── package.json          # Vite + React dependencies & scripts
-├── data/                     # Data directory (sales, items, calendar, forecasts)
-│   ├── processed/            # Processed parquet sales, items.csv, forecasts.parquet
-│   └── m5/calendar.csv       # Benchmark calendar metadata (events, SNAP, dates)
-├── data_prep/                # Raw Walmart M5 ingest, item selection & perishability flagging
-│   ├── extract.py            # Extracts top 120 FOODS items and assigns shelf lives
-│   └── prepare.py            # Builds sales.parquet with zero-leakage window bounds
-├── docs/                     # Architectural decisions & design principles
-│   ├── decisions.md          # Comprehensive architectural decisions log (#1 to #43)
-│   ├── design-principles.md  # 19 binding mathematical and engineering principles
-│   └── ...                   # Deep-dive study guides and technical PDF monographs
-├── forecast/                 # Quantile LightGBM machine learning forecaster
-│   ├── model.py              # Asymmetric quantile loss training (q50, q80, q90, q95)
-│   ├── features.py           # Strict lag features (lags 2, 7, 14, 21, 28; rolling means)
-│   ├── calibration.py        # Empirical coverage calibration and pinball scoring
-│   └── freeze.py             # Platform-independent model checkpointing & hashing
-├── holdout/                  # Sealed holdout partitioning and execution framework
-│   ├── make_block.py         # Config and data isolation for Blocks 1, 2, and 3
-│   ├── RUN_LIST_block1.md    # Preregistered execution specification for Block 1
-│   └── RUN_LIST_block2.md    # Preregistered execution specification for Block 2
-├── notebooks/                # End-to-end reproducible Jupyter walkthroughs
-│   ├── 01_forecaster.ipynb   # Data checks, leakage tests, model training & calibration
-│   └── 02_order_model.ipynb  # Newsvendor targets, MILP solve, dual prices & 7-day replay
-├── optimize/                 # Optimization core, parameters, and independent audit
-│   ├── parameters.py         # Type-safe parameter parsing from config.yaml
-│   └── replay_audit.py       # Independent physical simulation auditor
-├── outputs/                  # Frozen models, replay logs, what-if CSVs, and audit artifacts
-├── replay/                   # Daily multi-store simulation engine and baseline models
-│   ├── engine.py             # Closed-loop rolling daily simulator (stock, orders, decay)
-│   ├── store_model.py        # Newsvendor heuristic & StoreILP policy wrapper
-│   ├── baselines.py          # Classical benchmark rules (habit, topup_avg, topup_forecast)
-│   └── scorecard.py          # Fill rate, waste, stock turn, and net cost accounting
-├── tests/                    # 299 comprehensive pytest tests (100% green)
-├── config.yaml               # Master project configuration (single source of truth)
-├── requirements.txt          # Python runtime dependencies
-└── run_holiday_replay.py     # Standalone runner for the lead-time holiday policy
-```
+│
+├── analysis/
+│   ├── store_ilp.py
+│   ├── whatif.py
+│   └── holiday_calibration.py
+│
+├── configs/
+│   └── validation_fast.yaml
+│
+├── dashboard/
+│   ├── src/
+│   ├── public/data/
+│   ├── export_data.py
+│   ├── test_export.py
+│   └── package.json
+│
+├── data/
+│   ├── processed/
+│   └── m5/
+│
+├── data_prep/
+│   ├── extract.py
+│   └── prepare.py
+│
+├── docs/
+│   ├── decisions.md
+│   ├── design-principles.md
+│   └── technical documentation
+│
+├── forecast/
+│   ├── model.py
+│   ├── features.py
+│   ├── calibration.py
+│   └── freeze.py
+│
+├── holdout/
+│   ├── make_block.py
+│   ├── RUN_LIST_block1.md
+│   └── RUN_LIST_block2.md
+│
+├── notebooks/
+│   ├── 01_forecaster.ipynb
+│   └── 02_order_model.ipynb
+│
+├── optimize/
+│   ├── parameters.py
+│   └── replay_audit.py
+│
+├── outputs/
+│
+├── replay/
+│   ├── engine.py
+│   ├── store_model.py
+│   ├── baselines.py
+│   └── scorecard.py
+│
+├── tests/
+│
+├── config.yaml
+├── requirements.txt
+└── run_holiday_replay.py
 
 ---
 
-## ⚡ Quickstart & Reproduction Guide
+⚙️ Installation and Setup
 
-### 1. Environment Setup
+Prerequisites
 
-```bash
-# Clone the repository
+- Python 3.11 or a compatible supported Python environment.
+- Node.js and npm for the frontend.
+- Git.
+- COIN-OR CBC solver (installed or accessible through PuLP).
+
+Step 1: Clone the Repository
+
 git clone https://github.com/pmduck486/ShelfWise-stock-optimiser.git
+
 cd ShelfWise-stock-optimiser
 
-# Create and activate a Python virtual environment
+Step 2: Create a Virtual Environment
+
 python -m venv .venv
 
-# Windows:
+Activate it:
+
+Windows
+
 .venv\Scripts\activate
-# Linux / macOS:
+
+Linux / macOS
+
 source .venv/bin/activate
 
-# Install dependencies
+Step 3: Install Dependencies
+
 pip install -r requirements.txt
-```
 
-### 2. Run the Verification Test Suite
+Step 4: Verify the Installation
 
-Verify system integrity across all 299 tests (data prep, anti-leakage checks, quantile regressors, MILP formulations, and replay scorecard):
-
-```bash
 python -m pytest tests -q
-```
 
-### 3. Run a Multi-Store Replay Simulation
+The project test suite contains 299 tests covering the major data-processing, forecasting, optimization, and simulation components.
 
-Execute an 8-week closed-loop simulation comparing all 5 ordering policies:
+---
 
-```bash
-# Rapid 7-day test run on fast solver settings:
-python -m replay.cli --profile full --config configs/validation_fast.yaml --methods store_model,store_ilp --end-date 2015-11-07 --run-name quick_validation
+▶️ Running the Project
 
-# Full 8-week production replay (10 stores × 120 items × 56 days):
-python -m replay.cli --profile full --config configs/validation_fast.yaml --methods last_week,topup_avg,topup_forecast,store_ilp --run-name production_8week
-```
+1. Run a Quick Validation Simulation
 
-### 4. Interactive Jupyter Notebooks
+python -m replay.cli \
+  --profile full \
+  --config configs/validation_fast.yaml \
+  --methods store_model,store_ilp \
+  --end-date 2015-11-07 \
+  --run-name quick_validation
 
-Launch Jupyter to explore the step-by-step codebase:
-```bash
+2. Run the Full Replenishment Replay
+
+python -m replay.cli \
+  --profile full \
+  --config configs/validation_fast.yaml \
+  --methods last_week,topup_avg,topup_forecast,store_ilp \
+  --run-name production_8week
+
+3. Launch Jupyter Notebooks
+
 jupyter notebook
-```
-- [`notebooks/01_forecaster.ipynb`](notebooks/01_forecaster.ipynb): Demonstrates data preparation, leakage tests, quantile model fitting, coverage validation, and frozen parquet generation.
-- [`notebooks/02_order_model.ipynb`](notebooks/02_order_model.ipynb): Illustrates Newsvendor target derivations, single store-day MILP formulation, LP dual shadow pricing, and a live rolling replay.
 
-### 5. Run the Local Dashboard
+Explore:
 
-To run the interactive React dashboard locally:
+- "01_forecaster.ipynb" — Data preparation, forecasting, leakage validation, and quantile calibration.
+- "02_order_model.ipynb" — Newsvendor targets, MILP formulation, dual pricing, and inventory replay.
 
-```bash
+4. Launch the Frontend Dashboard
+
 cd dashboard
 
-# Install npm dependencies
 npm install
 
-# Start local Vite development server
 npm run dev
-# Dashboard launches at http://localhost:5173
-```
 
-To re-export dataset JSONs after running custom simulations:
-```bash
-# From dashboard directory:
+Open:
+
+http://localhost:5173
+
+5. Regenerate Dashboard Datasets
+
 python export_data.py
+
 python -m pytest test_export.py -q
-```
 
 ---
 
-## 🛡️ Rigorous Scientific Protocol & Integrity
+🔬 Experimental Methodology
 
-ShelfWise enforces strict experimental safeguards to ensure benchmark authenticity:
-1. **Strict 2-Day Informational Lag (Rule R2):** Store replenishment decisions for tomorrow ($t+1$) can only observe sales up to morning $t-1$. All feature pipelines enforce a minimum 2-day lag barrier. Future data poisoning tests (`test_forecast_fairness.py`) inject $-1000$ values into future rows to mathematically guarantee that no future information leaks into training or inference.
-2. **Preregistration & Ablation Testing:** Every optimization layer (Service Floor, Spoilage Cap, Stock Cap, Holiday Policy) was evaluated against preregistered keep/drop criteria established in documentation before simulation execution.
-3. **Triple-Blocked Holdout Partitioning:**
-   - **Test Window:** 1 Nov 2015 – 26 Dec 2015 (Used for model development and sensitivity).
-   - **Holdout Block 1 (H1):** 27 Dec 2015 – 13 Feb 2016 (Run once on frozen code; **−5.2% cost reduction**).
-   - **Holdout Block 2 (H2):** 14 Feb 2016 – 2 Apr 2016 (Run once on frozen code; **−7.1% cost reduction**).
-   - **Holdout Block 3 (H3):** 3 Apr 2016 – 22 May 2016 (Completely sealed and virgin).
-4. **Independent Physical Simulation Auditor:** An independent accounting auditor (`optimize/replay_audit.py`) validates every single store-item-day across all 5 methods, verifying that inventory conservation laws, shelf overflow rules, and carton quantization are strictly respected.
+ShelfWise uses a structured experimental protocol to reduce data leakage and improve the reliability of benchmark comparisons.
+
+1. Strict Information Lag
+
+The forecasting pipeline enforces a two-day informational lag barrier.
+
+Features used for replenishment decisions do not access future sales observations.
+
+2. Holdout Evaluation
+
+Partition| Evaluation Period| Purpose
+Core Test| 1 Nov 2015 – 26 Dec 2015| Model development and evaluation
+Holdout 1| 27 Dec 2015 – 13 Feb 2016| Sealed evaluation
+Holdout 2| 14 Feb 2016 – 2 Apr 2016| Sealed evaluation
+Holdout 3| 3 Apr 2016 – 22 May 2016| Virgin holdout
+
+3. Ablation Testing
+
+Different optimization layers are evaluated independently to understand their contribution:
+
+- Service-level floors.
+- Perishable spoilage caps.
+- Inventory stock caps.
+- Holiday replenishment policies.
+
+4. Independent Accounting Audit
+
+The independent auditor checks:
+
+- Inventory conservation.
+- Replenishment feasibility.
+- Carton quantization.
+- Storage restrictions.
+- Physical inventory movement.
+- Spoilage accounting.
+
+5. Automated Testing
+
+The repository contains 299 tests covering forecasting, data integrity, optimization, simulation, and dashboard export.
 
 ---
 
-## 👥 Course & Academic Context
+🎓 Academic Concepts Demonstrated
 
-- **Course:** CS2105 (Optimization Techniques), Semester III
-- **Institution:** Indian Institute of Technology Patna (IIT Patna)
-- **Key Deliverables:**
-  - [x] Mathematical Formulation & Implementation of Mixed-Integer Linear Programming (MILP)
-  - [x] Duality & Economic Shadow Pricing Analysis
-  - [x] Machine Learning Forecasting Engine (Quantile LightGBM)
-  - [x] Production Web Dashboard & Interactive What-If Simulation Suite ([Vercel](https://shelf-wise-stock-optimiser.vercel.app/))
-  - [x] Comprehensive Engineering Decisions Log ([`docs/decisions.md`](docs/decisions.md))
+ShelfWise applies several concepts from the CS2105 Optimization Techniques curriculum.
+
+Academic Concept| Implementation
+Linear Programming| Continuous inventory optimization
+Integer Programming| Whole-carton procurement
+Mixed-Integer Linear Programming| Store-level replenishment
+Objective Function| Minimization of total operational cost
+Constraints| Budget, truck capacity, and storage limits
+Newsvendor Theory| Optimal inventory targets
+LP Duality| Economic interpretation of constraints
+Shadow Pricing| Marginal value of additional resources
+Sensitivity Analysis| What-if operational simulations
+Optimization Under Uncertainty| Quantile demand forecasting
+Transportation Constraints| Limited truck capacity
+
+The project demonstrates how theoretical optimization concepts can be integrated into a practical decision-support system.
 
 ---
 
-## 📄 License & Acknowledgments
+🔮 Future Scope
 
-This project is licensed under the MIT License. Developed for the CS2105 Optimization Techniques course curriculum at IIT Patna. Real-world sales datasets sourced from the [Walmart M5 Forecasting Competition](https://www.kaggle.com/c/m5-forecasting-accuracy) on Kaggle.
+Potential extensions include:
+
+1. Real-Time Inventory Integration: Connect ShelfWise to actual point-of-sale and warehouse systems.
+2. Multi-Echelon Optimization: Extend the model to distribution centers, warehouses, and individual stores.
+3. Vehicle Routing Optimization: Optimize delivery routes alongside inventory replenishment.
+4. Dynamic Pricing: Incorporate price adjustments to reduce near-expiry inventory.
+5. Advanced Demand Forecasting: Explore Temporal Fusion Transformers and other probabilistic forecasting methods.
+6. Carbon-Aware Optimization: Include transportation emissions and environmental costs in the objective function.
+7. Live Supplier Integration: Incorporate supplier lead times, purchase-order constraints, and delivery schedules.
+
+---
+
+👨‍🎓 Course Information
+
+Project: ShelfWise — Autonomous Multi-Store Retail Replenishment & Inventory Optimization Engine
+
+Course: CS2105 — Optimization Technique
