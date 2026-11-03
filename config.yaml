@@ -310,6 +310,13 @@ analysis:
       stock_value_cap:              # layer 1, softer: a store's stock value tomorrow morning (incl. today's
         enabled: false              #   order) <= cover_days x its average daily spend (pooled over items,
         cover_days: 3               #   not a per-item cap). Kept only if it passes the pre-set test.
+      holiday_policy:               # Holiday Surge & Valley Policy (CS2105)
+        enabled: false              # Master toggle; default false keeps base runs byte-identical
+        pre_surge_days: 3           # T-3 to T-2: elevate target by item-specific M_surge
+        eve_run_to_zero: true       # T-1: zero buffer for fresh goods
+        perishable_throttle_days: 2 # T to T+1: order = 0 for fresh goods
+        post_dampener_days: 2       # T to T+1: scale non-perishable target by D_post (~0.3x)
+        calibration_file: outputs/holiday_policy.json
   whatif:                           # python -m analysis.whatif: one setting changed per run, store_ilp,
     method: store_ilp               #   8 test weeks, store-only. Sensitivity only: never used to pick
     runs:                           #   settings (no Jul-Oct forecasts exist). First value = the base.

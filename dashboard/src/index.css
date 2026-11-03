@@ -1,0 +1,287 @@
+@import 'tailwindcss';
+
+/* Tokens. Light is the default; dark is its own set of steps (not an inversion), applied by
+   the OS setting unless the viewer picked light, and always when the viewer picked dark. */
+:root {
+  color-scheme: light;
+  --bg: #f4f3ee;
+  --surface: #fcfcfb;
+  --surface-2: #eeede8;
+  --surface-3: #e4e2db;
+  --line: #dddbd3;
+  --line-strong: #c9c6bc;
+  --ink: #0b0b0b;
+  --ink-2: #4a4946;
+  --ink-3: #66645f;
+  --accent: #256abf;
+  --accent-ink: #ffffff;
+  --accent-soft: #dfeafa;
+  --focus: #256abf;
+  --s1: #2a78d6; /* categorical slot 1, blue: the main model */
+  --s2: #eb6834; /* slot 2, orange: comparison series */
+  --s3: #1baf7a; /* slot 3, aqua */
+  --s4: #eda100; /* slot 4, yellow */
+  --s5: #e87ba4; /* slot 5, magenta */
+  --s1-soft: #9ec5f4; /* the rule-only store model, a lighter step of the main model's blue */
+  --neutral-mark: #a9a69c;
+  --seq-1: #cde2fb;
+  --seq-2: #9ec5f4;
+  --seq-3: #6da7ec;
+  --seq-4: #3987e5;
+  --seq-5: #256abf;
+  --seq-6: #184f95;
+  --heat-0: #f0efec;
+  --heat-1: #fbd9c6;
+  --heat-2: #f5ad87;
+  --heat-3: #eb6834;
+  --heat-4: #b9471b;
+  --good: #0ca30c;
+  --good-ink: #0a6e0a;
+  --warning: #fab219;
+  --critical: #d03b3b;
+  --shadow: 0 1px 2px rgb(20 20 18 / 0.06), 0 8px 24px -12px rgb(20 20 18 / 0.18);
+  --shadow-lg: 0 2px 6px rgb(20 20 18 / 0.08), 0 30px 60px -24px rgb(20 20 18 / 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #121211;
+    --surface: #1a1a19;
+    --surface-2: #232321;
+    --surface-3: #2d2d2a;
+    --line: #31312e;
+    --line-strong: #46463f;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --ink-3: #a3a297;
+    --accent: #6da7ec;
+    --accent-ink: #0b0b0b;
+    --accent-soft: #1b2f4a;
+    --focus: #86b6ef;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --s5: #d55181;
+    --s1-soft: #184f95;
+    --neutral-mark: #6b6a62;
+    --seq-1: #0d366b;
+    --seq-2: #184f95;
+    --seq-3: #256abf;
+    --seq-4: #3987e5;
+    --seq-5: #6da7ec;
+    --seq-6: #9ec5f4;
+    --heat-0: #262624;
+    --heat-1: #5a2a15;
+    --heat-2: #8f3e1b;
+    --heat-3: #d95926;
+    --heat-4: #f39b72;
+    --good-ink: #5fd35f;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.5), 0 30px 60px -24px rgb(0 0 0 / 0.8);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #121211;
+  --surface: #1a1a19;
+  --surface-2: #232321;
+  --surface-3: #2d2d2a;
+  --line: #31312e;
+  --line-strong: #46463f;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --ink-3: #a3a297;
+  --accent: #6da7ec;
+  --accent-ink: #0b0b0b;
+  --accent-soft: #1b2f4a;
+  --focus: #86b6ef;
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --s5: #d55181;
+  --s1-soft: #184f95;
+  --neutral-mark: #6b6a62;
+  --seq-1: #0d366b;
+  --seq-2: #184f95;
+  --seq-3: #256abf;
+  --seq-4: #3987e5;
+  --seq-5: #6da7ec;
+  --seq-6: #9ec5f4;
+  --heat-0: #262624;
+  --heat-1: #5a2a15;
+  --heat-2: #8f3e1b;
+  --heat-3: #d95926;
+  --heat-4: #f39b72;
+  --good-ink: #5fd35f;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.5), 0 30px 60px -24px rgb(0 0 0 / 0.8);
+}
+
+/* Calendar fill-rate bins: one blue ramp, light to dark = lower to higher fill, with a text colour per
+   bin that keeps at least 4.5:1 contrast. */
+:root {
+  --cal-1: #cde2fb; --cal-ink-1: #0b0b0b;
+  --cal-2: #9ec5f4; --cal-ink-2: #0b0b0b;
+  --cal-3: #6da7ec; --cal-ink-3: #0b0b0b;
+  --cal-4: #256abf; --cal-ink-4: #ffffff;
+  --cal-5: #184f95; --cal-ink-5: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --cal-1: #0d366b; --cal-ink-1: #f0efec;
+    --cal-2: #184f95; --cal-ink-2: #f0efec;
+    --cal-3: #256abf; --cal-ink-3: #ffffff;
+    --cal-4: #3987e5; --cal-ink-4: #0b0b0b;
+    --cal-5: #6da7ec; --cal-ink-5: #0b0b0b;
+  }
+}
+:root[data-theme='dark'] {
+  --cal-1: #0d366b; --cal-ink-1: #f0efec;
+  --cal-2: #184f95; --cal-ink-2: #f0efec;
+  --cal-3: #256abf; --cal-ink-3: #ffffff;
+  --cal-4: #3987e5; --cal-ink-4: #0b0b0b;
+  --cal-5: #6da7ec; --cal-ink-5: #0b0b0b;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-s1: var(--s1);
+  --color-s2: var(--s2);
+  --color-good: var(--good);
+  --color-good-ink: var(--good-ink);
+  --color-critical: var(--critical);
+  --color-warning: var(--warning);
+  --font-display: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --shadow-card: var(--shadow);
+  --shadow-lift: var(--shadow-lg);
+}
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  color: inherit;
+  accent-color: var(--accent);
+  caret-color: var(--accent);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.prose-measure {
+  max-width: 68ch;
+}
+
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 10px;
+}
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+/* closed store day in the calendar: a diagonal hatch (a real closure, so the texture carries meaning) */
+.hatch {
+  background-image: repeating-linear-gradient(135deg, var(--line-strong) 0 1.5px, transparent 1.5px 7px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* grid and flex children may shrink below their content (charts size themselves to their box) */
+.grid > *,
+.flex > * {
+  min-width: 0;
+}

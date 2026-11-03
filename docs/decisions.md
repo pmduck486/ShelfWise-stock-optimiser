@@ -4,7 +4,9 @@
 >
 > **Sources:** `plan/forecaster-build-plan.md` (decisions table 1–22), `plan/forecast-training-plan.md` (rules R1–R12), `HANDOFF.md` (decisions log), `config.yaml`, the `forecast/` code and `tests/`, plus real-data checks run on 2026-10-30.
 >
-> **Status when written (2026-10-30):** Phase A (config, loader, baselines, scorer), Phase B (features + fairness tests) and Phase C (q50 model, upper lines, post-processing, review checks, stopped-selling fix #26) and Phase D Tasks 6–7 (tuning, calibration, #28) are built; Phase E Tasks 8–10 (freeze, `forecasts.parquet`, slide scores; #29) were built on 2026-10-31. 163 tests pass on the laptop (Windows `.venv`), and the 19 freeze tests pass 19/19 against the real written file. (Phase C added 2026-10-30.) Decisions about unbuilt parts are marked **(planned)**.
+> **Status (updated 2026-11-02, final store-only model):** the project is now store-only with a 2-day forecaster; the main order model is `store_ilp`; code is frozen; holdout blocks 1 and 2 are done, block 3 is sealed. The newest decisions are #37 to #42 (after #36). Where an older decision below was replaced, it carries a **SUPERSEDED** note pointing to the new one. 299 tests pass.
+>
+> **Status when first written (2026-10-30):** Phase A (config, loader, baselines, scorer), Phase B (features + fairness tests) and Phase C (q50 model, upper lines, post-processing, review checks, stopped-selling fix #26) and Phase D Tasks 6–7 (tuning, calibration, #28) are built; Phase E Tasks 8–10 (freeze, `forecasts.parquet`, slide scores; #29) were built on 2026-10-31. 163 tests pass on the laptop (Windows `.venv`), and the 19 freeze tests pass 19/19 against the real written file. (Phase C added 2026-10-30.) Decisions about unbuilt parts are marked **(planned)**.
 
 ---
 
@@ -15,8 +17,8 @@
 | 1 | What the forecaster outputs | Four lines per store-item-day: 50%, 80%, 90%, 95% |
 | 2 | Model type | scikit-learn `HistGradientBoostingRegressor` with quantile loss |
 | 3 | One model or many | One global model per line, all stores and items together |
-| 4 | Forecast horizon | 7 days, re-planned every day |
-| 5 | Rule R2 (7-day gap) | Kept: store data must be at least 7 days old |
+| 4 | Forecast horizon | 7 days, re-planned every day (SUPERSEDED by #37: now 2 days, today and tomorrow) |
+| 5 | Rule R2 (7-day gap) | Kept: store data must be at least 7 days old (SUPERSEDED by #37: now 2 days) |
 | 6 | Calendar inputs | Allowed for the target day itself (R3) |
 | 7 | Time windows | Split by date; sealed holdout run once |
 | 8 | Validation | Two folds: Nov–Dec 2014 (festive) and Jul–Oct 2015 |
@@ -34,7 +36,7 @@
 | 20 | Scoring the line actually used | `cover_used_line` per product |
 | 21 | Calendar source | `calendar.csv`, not `sales.parquet` |
 | 22 | Optional layers | B after the core; C and M only if the user says yes |
-| 23 | Project scope | Stock ordering only; libraries, not hand-written algorithms |
+| 23 | Project scope | Stock ordering only; libraries, not hand-written algorithms (warehouse part SUPERSEDED by #37: store-only) |
 | 25 | Overfitting fixes | Tree count from the validation curve, built-in early stopping off, 3-seed check (planned) |
 | 24 | Phase C checks | A change stays only if it helps both folds (all tries logged); q80/q90/q95 compared with both baselines; 20 worst store-items + shuffle leak test (built) |
 | 27 | Recency weighting + optional pre-Phase-D fixes | Dropped (user's call 2026-10-31) |
@@ -43,10 +45,10 @@
 | 26 | Items that stopped selling | Keep long zero runs in training + q50 = 0 after 28 days with no sales (built; reverses #11) |
 | 30 | Final order model vs our forecaster | They line up: same forecast file format, same service lines, same shared config; `policy.decide` returns a Decision object; copied into the project with 5 extra tests, 229 tests pass (built 2026-11-01) |
 | 31 | Order model on Windows: pass the solver's head start correctly | `optimize/cbc.py` gives CBC a relative scratch folder so it can read the start file; keepFiles tested and rejected (built 2026-11-01) |
-| 32 | Solver time per day in the 4-method replay | 15 s per day while building and testing; one final 60 s run for the core results in the slides (planned) |
+| 32 | Solver time per day in the 4-method replay | 15 s per day while building and testing; one final 60 s run for the core results in the slides (SUPERSEDED by #37 and #39: the warehouse optimizer is off; the store ILP uses 10 s per store-day; the 60 s run was never needed) |
 | 34 | The replay's 3 simple rules and scorecard | Top-up rules with 2-day store cover and 6-day warehouse cover; method 2 adds z·σ·√D safety; net cost corrects for end stock; budget cut by scale-down + largest remainder (built 2026-11-01; Gate 1 passed, full run planned) |
-| 35 | First full core replay (test window, 15 s) | Optimizer: fill 89.5%, least stock, lowest cost + lost-sales score, but below both top-up rules on service; result reported as is; to be rerun at 60 s for the slides (built 2026-11-02) |
-| 33 | How the holdout is used | Sealed until all layers are done and code is frozen; the replay gives feedback on the test window only; before opening, write down the exact versions (core with all switches off, final with finished layers on, each against the 3 simple rules); report both as they come out (planned) |
+| 35 | First full core replay (test window, 15 s; warehouse version, now historical) | Optimizer: fill 89.5%, least stock, lowest cost + lost-sales score, but below both top-up rules on service; result reported as is; to be rerun at 60 s for the slides (built 2026-11-02) |
+| 33 | How the holdout is used (SUPERSEDED by #41: three blocks, five methods, frozen code) | Sealed until all layers are done and code is frozen; the replay gives feedback on the test window only; before opening, write down the exact versions (core with all switches off, final with finished layers on, each against the 3 simple rules); report both as they come out (planned) |
 
 ---
 
@@ -73,6 +75,8 @@
 - **Evidence:** the size argument above; HGB's category limit (at most 255 values per category column) is checked by `test_categories_fit_model`, and 120 items fit.
 
 ### 4. A 7-day horizon, re-planned daily
+> **SUPERSEDED (2026-11-02, decision #37):** the project is store-only, so the forecaster now predicts only today and tomorrow (`forecast.horizon_days: 2`). The reasons below (5-day supplier lead time, pallets) were all about warehouse buying, which is now switched off. Kept as the record of the first design.
+
 - **Chosen:** each morning ("origin") we forecast the next 7 days, origin to origin+6. The order model plans all 7 days, carries out only day 1, and plans again tomorrow.
 - **Why a 7-day forecast is useful when we only act on day 1:**
   - **Supplier lead time is 5 days** (config), so a warehouse order placed today lands on day 5. You must know day 5's demand today.
@@ -83,11 +87,22 @@
   - In short: **plan 7 days, act on 1.** Re-planning daily means mistakes in days 2–7 are fixed tomorrow, so only day 1 needs whole cases (CLAUDE.md rule 3).
 - **Alternatives:** a 1-day forecast (cannot cover the 5-day lead time); a 14-day plan (CLAUDE.md: too big for the CBC solver).
 
+| 36 | Final folder + folder-independent fingerprint | The final project lives in `CS2105/RetailOps/`; the frozen model's config fingerprint no longer includes folder paths (built) |
+| 37 | Store-only project + 2-day forecaster | Warehouse off (kept as a switch); R2 gap 7 → 2 days; horizon 2 days; q50 error 8-10% lower (built 2026-11-02) |
+| 38 | New method `store_model` | Newsvendor targets per store-item: long-life to q95, perishables at the cost-based level, spoilage cap (built) |
+| 39 | `store_ilp` is THE MAIN order model | Targets turned into whole cartons by a one-day ILP per store; LP duals = shadow prices; what-ifs (built) |
+| 40 | Layers on the store ILP | Service floor 90% and spoilage cap kept; softer stock cap dropped by a pre-set test; no display minimum (built) |
+| 41 | Code freeze + holdout in three blocks | Block 1 and 2 run once each with frozen code; block 3 sealed; replaces #33 (built) |
+| 42 | Results dashboard and study guides | One static results dashboard and two PDF study guides for the viva (built) |
+| 43 | Holiday Surge & Valley Policy Layer | Multi-phase holiday policy: M_surge on surge items, D_post slump dampener, 48-hr perishable throttle (built 2026-11-03) |
+
 ---
 
 ## B. Fairness: never peeking at the future
 
 ### 5. Rule R2, the 7-day gap: kept
+> **SUPERSEDED (2026-11-02, decision #37):** R2 is now a **2-day** gap (`forecast.min_lag_days: 2`, lags 2, 7, 14, 21, 28). The logic is the same (the gap must be at least the horizon, so one model serves every forecast day); only the numbers changed. `load_config` and `predict` refuse a horizon longer than the gap. Kept below as the record of the first design.
+
 - **Chosen:** every input taken from the store's own records (units, prices, averages, spreads) must be **at least 7 days older than the target day**. Calendar facts are the only exception (decision 6).
 - **Why:** we forecast up to 7 days ahead. On the morning of day *o*, the forecast for *o*+6 can only use data up to *o*−1, which is 7 days before *o*+6. If every input is at least 7 days old, **one model serves the whole week** and a forecast for a given date is identical whichever morning asked for it. That is also what makes the future-poison test possible.
 - **Alternatives considered:**
@@ -314,6 +329,8 @@ Approved by the user on 2026-10-30 (re-check strategies 3, 4 and 5). Explained i
 | P7 hook | Empty-shelf correction | A hook in `training_rows` that does nothing while its switch is off |
 
 ### 23. Project scope
+> **SUPERSEDED (2026-11-02, decision #37):** scope is now stock ordering for **10 stores only**; the 2-warehouse part is switched off (`replay.warehouse: off`) but stays in the code. See #37.
+
 - **Chosen:** RetailOps, stock ordering for a 10-store, 2-warehouse chain on real Walmart M5 food sales. Two models: the ML forecaster (Lump 1) feeds the order ILP (Lump 2, built by a teammate), then shadow prices, an 8-week replay and a dashboard.
 - **Why only stock ordering:** keeps the core small enough to finish and test. Staff shifts, billing counters, truck routing, the transport problem and from-scratch textbook algorithms were moved to `reserved-plan.md`.
 - **Use libraries** (scikit-learn, PuLP/CBC) rather than hand-coding algorithms (reversed the 2026-10-27 decision), so effort goes into a correct, fair model.
@@ -370,6 +387,8 @@ Approved by the user on 2026-10-30 (re-check strategies 3, 4 and 5). Explained i
 - **Where in code:** `optimize/cbc.py` (new), the solver calls in `optimize/model.py` and `optimize/dc_solver.py`; test `tests/test_warm_start_reaches_cbc.py`. Run outputs: `outputs/order_model/small_real_check/`, `outputs/order_model_runs/full_real_3d/`.
 
 ### 32. Solver time per day in the 4-method replay: 15 s while building, one 60 s run for the final results (user's call 2026-11-01; planned)
+> **SUPERSEDED (2026-11-02, decision #37):** the warehouse-level optimizer this was about is off. The final model solves one small ILP per store per day with a 10 s limit (`analysis.store_ilp.time_limit_s`). The 60 s run was not needed. See #39.
+
 - **Chosen:** while the replay and its 3 baselines are being built and tested, the optimizer gets **15 seconds of solver search per day** (`configs/validation_fast.yaml`). The core results shown in the slides come from **one final run at the production setting** in `config.yaml`: 60 seconds per day, stopping early once the plan is within 1% of the best possible (the "gap target").
 - **What the budget means:** each day the solver searches for the cheapest set of orders. It stops when the time runs out or when it can prove its plan is within 1% of the best possible. More time usually means a slightly cheaper plan, but every run takes longer.
 - **Why:** the replay covers 56 days, and the optimizer has to solve every day. At 15 s a full run takes roughly an hour per run of the optimizer; at 60 s it takes about twice that or more. Building and testing need many reruns, so 15 s keeps each cycle short enough to finish before the 1 Nov deadline. The final numbers still use the full production budget. The 3 baselines are simple rules, so they don't use the solver and run fast either way.
@@ -384,6 +403,8 @@ Approved by the user on 2026-10-30 (re-check strategies 3, 4 and 5). Explained i
 - **Where:** `configs/validation_fast.yaml` (15 s) and `config.yaml → order_model.solver` (60 s, `mip_gap: 0.01`).
 
 ### 33. The holdout: sealed until the end, versions written down first, both results reported (user's call 2026-11-01; planned)
+> **SUPERSEDED (2026-11-02, decision #37):** the principle (seal it, write down what runs, report as it comes out) was kept, but the plan changed: the holdout was split into three blocks, five methods were run, and the code was frozen first. See #41. The "core vs final with layers" pair and the 60 s run below were not used.
+
 - **Chosen:**
   - **While building and adding layers,** the replay (Lump 4) runs on the **test window only** (2015-11-01 → 12-26). That is where every layer is switched on, compared with the core, and kept or dropped.
   - **The holdout (2015-12-27 → 2016-05-22, 148 days) stays sealed** until the core and all layers are finished and the code is frozen. Its sales are not even in `sales.parquet`.
@@ -427,6 +448,8 @@ Approved by the user on 2026-10-30 (re-check strategies 3, 4 and 5). Explained i
 - **Code and tests:** `replay/` (history.py, baselines.py, engine.py, kpis.py, cli.py); 34 tests in `tests/test_replay.py`, including the 3-day hand-worked case per rule, the future-poison test for all 4 methods, Christmas, budget and warehouse-short checks, and hand-checked KPIs. Full suite 263 passed.
 
 ### 35. First full core replay: 56 days, 10 stores × 120 products, 15 s (run 2026-11-02; the 60 s run for the slides is planned)
+> **SUPERSEDED (2026-11-02, decision #37):** this is the result of the **old warehouse-level optimizer** and now serves as history and as the reason for the rebuild (#37). The final headline numbers are in #39 to #41.
+
 - **Run:** `outputs/replay/core_test_15s_2026-11-01/`, test window 2015-11-01 → 12-26, our real forecasts, `configs/validation_fast.yaml` (15 s per day), all 4 methods from the same start. Logged in `outputs/test_runs.log`. Every daily rule check and her independent audit passed for all 4 methods (80,640 stock and pack checks, 13,440 warehouse-dispatch checks, 560 truck checks, 112 budget checks, 56 conservation checks each; largest residual 3e-11). Optimizer: 55 days stopped on the 15 s limit with a usable plan, 1 reached the 1% target, gap median 6.0% (max 13.2%), 0 fallback days, 58,110 variables (2,650 whole numbers).
 - **Results (habit / top-up 4-week avg / top-up our forecast / optimizer):**
   - fill rate 84.0% / 95.1% / 97.3% / 89.5%; stockout days 10,746 / 3,154 / 1,621 / 5,941; lost units 81,747 / 25,129 / 13,784 / 53,843;
@@ -445,11 +468,105 @@ Approved by the user on 2026-10-30 (re-check strategies 3, 4 and 5). Explained i
 
 ---
 
+## I. The final store-only model (2026-11-02)
+
+### 37. The project becomes store-only, and the forecaster looks 2 days ahead (user's call 2026-11-02 00:28; built 01:16)
+- **Chosen:**
+  - Order for the **10 stores only**. The warehouse level stays in the code as a switch (`config.yaml → replay.warehouse: off`), not deleted.
+  - **Rule R2 changes from 7 to 2 days.** Orders only look at today and tomorrow, so the forecaster predicts exactly those 2 days: `forecast.horizon_days: 2`, `min_lag_days: 2`, `lags: [2, 7, 14, 21, 28]`, `baseline_lag_days: 7` (so the two baselines are unchanged and the comparison stays fair).
+  - The tuned model settings were kept (not re-tuned); calibration was redone.
+  - Store-only replay: every warehouse-item starts with `replay.unlimited_warehouse_units` (1e6), the warehouse pipeline is dropped and no supplier orders exist, but her `execute_day` and independent audit run unchanged. The scorecard counts store stock only (goods are charged at buy cost when sent to a store). `replay.forecast_days: 2`. The old warehouse optimizer is refused when the warehouse is off.
+- **Why:** the 56-day replay (#35) and the diagnosis (#34) showed the old optimizer lost sales mainly because of how it planned the warehouse and how much it sent to stores. A pallet lasts weeks while its 7-day plan only sees one week. A small rebuild trial (store-only rules, pre-set settings) then showed a simple store-level rule beat all the simple rules on cost, so the user chose to drop the warehouse and rebuild on that basis.
+- **Alternatives:** fix the warehouse buying (value supplier stock beyond 7 days, or smaller packs for slow items) and keep the 7-day forecaster; or keep both versions. Rejected as larger and slower to defend, with the same fairness risk.
+- **Evidence (retrained on the laptop 2026-11-02):** q50 error (MAE) fold 1 / fold 2 = 3.550 / 3.817, against 3.931 / 4.150 for the 7-day model (about 8 to 10% lower), as expected when fresher data is allowed. Every upper line still beats both baselines. Coverage of q80 / q90 / q95 about 81 / 90 / 94.6%. Calibration k = 1 (no stretch needed). The shuffle leak check passed. `data/processed/forecasts.parquet` now has 56 origins × 2 days × 1,200 store-items = 134,400 rows. Old 7-day model and file kept aside in `outputs/forecast_7day_r2/` (archived).
+- **Code and tests:** `forecast/` config handling (`load_config` and `predict` refuse horizon > gap; test with `min_lag_days == 2`), `replay/` store-only mode, `tests/test_store_only.py`. 282 tests passed at this point.
+- **Fairness note:** the fairness tests still run with a 7-day gap as a fixture and a new test checks the 2-day setting, so both rules are proved.
+
+### 38. The store model (`store_model`): order up to a target (user's call 2026-11-02; built)
+- **Chosen:** an order-up-to rule over today + tomorrow, built from our forecast lines.
+  - **Long-life items:** target = q95 summed over the cover days.
+  - **Perishables:** target at the cost-based level Cu / (Cu + Co) ≈ 0.63, between q50 and q80 (the newsvendor idea: stock until one more unit is as likely to be wasted as to be sold).
+  - **Spoilage cap:** a perishable's stock is capped at q50 demand from today to today + shelf life, so it should sell before it expires. Perishables are rounded to the nearest carton.
+- **Why:** it is the textbook newsvendor rule, explained in one line, and it uses the quantile lines the forecaster produces for exactly this purpose. Settings were written down before the trial (`PREREGISTERED.md`, now in `_archive`).
+- **Evidence (8-week test window, store-only, 15 s config):** net cost + lost-sale penalty: habit 1,015k, top-up on 4-week average 1,024k, top-up on our forecast 1,012k, **`store_model` 938k (7.4% below the best simple rule)**. Fill: habit 84.1%, top-up average 95.2%, top-up forecast 97.9%, `store_model` 94.1%. Waste: 19.9k / 68.0k / 73.9k / **6.8k** units. Weak spots, reported as found: fill 94.1% and the highest store stock value (35.2k).
+- **Where:** `replay/store_model.py`; settings in `config.yaml → replay`.
+
+### 39. `store_ilp` is the main order model: targets, then a small ILP, then shadow prices (user's call 2026-11-02 09:14; built)
+- **Chosen:** the user made `store_ilp` **the main order model**: ILP + LP + duality are the optimisation part of the project. `store_model` stays as its rule-only version for comparison.
+  - **Step 1:** the newsvendor targets of #38.
+  - **Step 2:** one **integer linear program per store per day** (`analysis/store_ilp.py`) turns the targets into whole cartons, under three limits: truck capacity, shelf space and a daily budget. Settings in `config.yaml → analysis.store_ilp`.
+  - **Step 3 (duality):** the integer decisions are fixed and the problem is re-solved as an LP; its **dual values are the shadow prices** (what one more truck slot, shelf unit or rupee of budget would be worth). One row per store-day per limit goes to `shadow_prices.csv` in every run.
+  - **What-ifs:** `analysis/whatif.py` re-runs the replay with one setting changed (trucks, space, budget, lost-sale penalty). They are for sensitivity only and are never used to choose settings.
+- **Why:** the targets say what to hold; the ILP decides how many whole cartons fit the real limits; the duals say what each limit costs. This is the course material (ILP, LP duality, sensitivity) applied to the real problem. The user chose it as the main model because it is the one that uses all three.
+- **Alternatives:** keep the old warehouse ILP (#37); stop at the rule `store_model` (no optimisation to explain).
+- **Evidence (first run, 8 weeks, store-only, 15 s config):** `store_model` / `store_ilp` fill 94.07% / 94.87%; lost units 30,282 / 26,208; waste 6,842 / 8,043; net cost + penalty 937,832 / **934,088** (-0.4%). All daily rule checks and the independent audit pass. ILP size at most 4,810 variables (2,410 integer); 55 days solved, 2.8 s max.
+- **Shadow prices: all 0 at the current limits.** No truck, space or budget limit binds on any of the 550 store-days (average use: budget 35%, trucks 21%, space 15%). So the orders are set by the targets, not the limits, and the limits cost nothing today. They only start to cost under the what-ifs: trucks of 60 cases +1.4% cost; space ×0.3 fill 86.1% with a space shadow price of 0.95 on 318 store-days; budget ×0.45 fill 93.0% with a price of 0.50 on 156 store-days. This is a finding to report honestly, not a bug.
+- **Tests:** 11 new in `tests/test_store_ilp.py` (293 total at this step).
+
+### 40. Layers on the store ILP: service floor and spoilage cap kept, stock cap dropped (user's call 2026-11-02 09:28; built)
+- **Chosen:**
+  - **Layer 2, service floor (kept):** stock + order must reach 90% of the target for every store-item. Soft: each missing unit costs 10 × the lost-sale cost, so the ILP only misses it when a limit leaves no room. Its dual is the price of the 90% promise.
+  - **Layer 4, spoilage cap inside the ILP (kept):** the perishable spoilage cap of #38 becomes an ILP constraint, with its own dual.
+  - **Layer 1, soft stock cap (dropped):** a store's stock value tomorrow morning ≤ 3 × its average daily spend.
+  - **No display-minimum layer** (the user decided against it).
+  - Switches live in `config.yaml → analysis.store_ilp.layers`; the stock-cap switch stays in the code, set to off.
+- **Why:** each layer was a switch added one at a time (CLAUDE.md rule 2) and judged by a keep/drop test **written before the runs** (`PREREGISTERED.md`), so it could not be picked after seeing results.
+- **Evidence (8-week test window; fill / lost units / waste / store stock / net cost + penalty):** core `store_ilp` 94.87 / 26,208 / 8,043 / 35,279 / 934,088 (reproduced exactly); + floor 95.63 / 22,318 / 11,680 / 35,797 / 935,257; + spoilage cap 94.44 / 28,400 / 6,568 / 35,226 / 934,465; **+ floor + spoilage cap (the main model) 94.96 / 25,727 / 7,015 / 35,663 / 932,094**; + stock cap 94.47 / 28,243 / 6,809 / 33,444 / 934,553. The stock cap cut stock 6.2% (the test needed 5%) but raised cost 0.26% (limit 0.2%) and lowered fill 0.49 points (limit 0.3), so the pre-set test dropped it.
+- **Shadow prices of the main model:** truck, space and budget still 0; the service floor is active on 965 store-item-days (mean about Rs 28.6 per unit); the spoilage cap is priced on 6 (mean about Rs 5.3).
+- **Tests:** 17 in `tests/test_store_ilp.py`; 297 in the cloud suite at this step.
+
+### 41. Code freeze and the holdout in three blocks (user's call 2026-11-02 09:57; blocks 1 and 2 built and run)
+- **Chosen:**
+  - **Code and settings frozen.** Nothing changes unless something breaks (a crash or a failed rule check), and then the user is told first.
+  - The sealed holdout (27 Dec 2015 to 22 May 2016, 148 days) is split into **three blocks of about 7 weeks**: **H1 27 Dec to 13 Feb, H2 14 Feb to 2 Apr, H3 3 Apr to 22 May (still sealed)**.
+  - Each block is run **once**, with a **run list written first** (`holdout/RUN_LIST_block1.md`, `RUN_LIST_block2.md`): products and shelf lives unchanged, forecaster retrained once up to the day before the block and frozen again with the same settings, same config with only dates and folders changed (`holdout/make_block.py`). Data checks stop the run if any earlier sales row or the item list differs.
+  - **Starting stock:** the same rule as 1 Nov: 3 days of each store-item's 28-day average sales, identical for every method.
+  - **Five methods per block:** habit, top-up on 4-week average, top-up on our forecast, `store_model`, `store_ilp`. Everything is reported as it comes out; no method added, dropped or re-tuned afterwards.
+- **Why:** the same reason as #33 (the holdout must not become a second test window), plus: three blocks let us see whether the result holds in different periods without using up all of the unseen data at once, and keep block 3 as a last untouched check.
+- **Alternatives:** one run over all 148 days (a single number, no sense of stability); keep the layers-on versus layers-off pair of #33 (the layers were already judged on the test window by pre-set tests, #40).
+- **Evidence (net cost + penalty; fill; waste units):**
+
+  | Period | habit | top-up avg | top-up forecast | `store_model` | **`store_ilp`** | vs best simple rule |
+  |---|---|---|---|---|---|---|
+  | Test window (8 wk) | 1,015k | 1,024k | 1,012k | 938k | 932,094; 94.96%; 7,015 | about -8% |
+  | H1 27 Dec to 13 Feb | 927,707 | 902,042 | 926,142 | 861,126 | **855,095**; 94.14%; 4,469 | **-5.2%** |
+  | H2 14 Feb to 2 Apr | 957,576 | 957,610 | 954,708 | 894,054 | **887,087**; 95.40%; 5,465 | **-7.1%** |
+
+  - Fill rates of the simple rules: H1 82.4 / 94.1 / 97.8%; H2 85.6 / 95.7 / 98.2% (they serve more customers but hold far more stock and waste far more: 35k to 70k units in H1 against 4.5k for `store_ilp`).
+  - Forecaster on the blocks: q50 MAE 3.52 (H1) and 3.63 (H2); coverage of q80 / q90 / q95 was 81.9 / 90.7 / 94.9% and 81.9 / 90.9 / 95.3%, on target.
+  - All daily rule checks and the independent audit passed for all five methods in both blocks. Shadow prices behaved as before: truck, space and budget 0 on all 490 store-days per block; service floor active on 1,574 (H1) and 1,352 (H2) store-item-days; spoilage cap on 11 and 2. `store_ilp` holds the most store stock (H1 32,916; H2 34,286), the cost of its high fill with little waste.
+- **Open:** block 3 stays sealed until the user decides to run it.
+- **Where:** `holdout/`, `outputs/replay_holdout/`, `outputs/holdout_runs.log`.
+
+### 42. Results dashboard and study guides (built 2026-11-02)
+- **Chosen:** one static results dashboard (`dashboard/retailops-results.html` in the project files, also published at https://claude.ai/artifact/99bHfztsWvWdYvX2dW9ePa) showing the method comparison, the holdout blocks and the shadow prices; plus two PDF study guides in `RetailOps/docs/` (forecaster and order model) for viva preparation. The two notebooks (`notebooks/01_forecaster.ipynb`, `02_order_model.ipynb`) walk through the same story with the real code.
+- **Why:** the instructor asked for a UI or dashboard and a presentation; a static page needs no server and matches the "Python + static HTML" stack decision.
+- **Still to do:** the PPT, a one-page viva sheet, and a single `run_all.py` (optional).
+
+### 43. Holiday Surge & Valley Policy Layer: festival-aware order throttling (user's call 2026-11-03; built & refined)
+- **Chosen:** a multi-phase policy layer active during high-volatility calendar events (Thanksgiving and Christmas Eve):
+  - **Surge phase (T-3 to T-1):** Multiplier M_surge applied to item targets for holiday-sensitive products (28 items calibrated from 2013–2014 historical data with mean surge 1.67×), derived from item-specific quantile lines.
+  - **Post-holiday slump cool-down (T+1 to T+2) with Category Decoupling:**
+    - **Perishables (spoilage throttle):** Strict anti-spoilage dampener $D_{\text{post}} \in [0.20\times, 0.50\times]$ (mean $0.49\times$) accompanied by active spoilage warning; suppresses both target lines and spoilage caps to prevent weekend dumpster waste.
+    - **Non-perishables (unthrottled):** $D_{\text{post}}$ completely removed ($1.00\times$); standard newsvendor target ($q95$) preserved as shelf life is infinite, avoiding artificial dry-good stockouts.
+- **Why:** Retail demand surges 2–3× in the days leading up to major holidays, followed by an immediate slump. Standard rolling features lag behind holiday dynamics. Throttling dry goods causes preventable stockouts; restricting the slump choke exclusively to perishables preserves the -97.8% weekend dumpster reduction while completely recovering customer sales for non-perishables.
+- **Evidence (8-week test window; fill / lost units / waste / store stock / net cost + penalty):**
+  - **+ floor + spoilage cap + holiday policy: 94.49% / 28,131 / 6,904 / $37,265 / $934,839**
+  - **Thanksgiving week waste fell from 779 units to 151 units (-80.6%)**, drastically curbing post-holiday spoilage.
+  - Test-window total waste dropped from 8,043 units down to 6,904 units (-1,139 spoiled units saved).
+  - Recovered +699 customer sales chain-wide (+221 served on Thanksgiving week) vs uniform 0.45× throttle without adding a single unit of waste.
+- **Where:** `analysis/holiday_calibration.py`, `replay/store_model.py`, `outputs/holiday_policy.json`; settings in `config.yaml → analysis.store_ilp.layers.holiday_policy`.
+
+---
+
 ## Likely viva questions, short answers
 
-- **"How do you know the model doesn't cheat?"** Every store input is at least 7 days old, checked by a registry (`FEATURE_SOURCES`) and by tests that poison all future data with ×1000 values and check the inputs don't change. Windows are split by date, the holdout is sealed, and all statistics come from training rows only.
-- **"Why not just forecast tomorrow?"** The supplier takes 5 days, orders come in cases and trucks, perishables expire, and festivals need build-up. We plan 7 days and act on 1.
+- **"How do you know the model doesn't cheat?"** Every store input is at least 2 days old (7 in the first version; see #37), checked by a registry (`FEATURE_SOURCES`) and by tests that poison all future data with ×1000 values and check the inputs don't change. Windows are split by date, the holdout is sealed, and all statistics come from training rows only.
+- **"Why only 2 days ahead now?"** The final model orders for stores only: a store receives goods the next day, so an order only has to cover today and tomorrow. The first version also bought for warehouses (5-day supplier delay), which needed a 7-day view; that part was dropped (#37) because it was the weak point of the first model (#34, #35).
 - **"Why is your model better?"** It must beat the teammate's 4-week-average rule on both folds, including a festive fold, or we stop and diagnose (Task 4 gate).
+- **"What is the main order model and what does it use from the course?"** `store_ilp`: newsvendor targets, then one integer linear program per store per day for whole cartons under truck, space and budget limits, then the LP duals as shadow prices (#39).
+- **"Why are the shadow prices zero?"** At our settings no truck, space or budget limit binds, so one more unit would be worth nothing; they only become positive when the what-ifs cut the limits hard (#39). The 90% service floor does bind, and its price (about Rs 28.6 per unit) tells what the promise costs (#40).
+- **"How do you know the results are not tuned to the test?"** Layers were chosen by tests written beforehand; the code was frozen; the holdout blocks were run once each from a run list written first, and block 3 is still sealed (#41).
 - **"Why quantiles?"** Different products are stocked to different safety levels (80/90/95%), so the order model needs those lines directly.
 - **"What did you try that didn't work?"** Promo inputs, price vs department, a 52-week normal price, target-day price, more trees, log target, seed averaging, baseline blending. All gave no consistent gain.
 - **"What would you do with more time?"** The horizon-aware model (about 5% better over the week, 12% for tomorrow) and the optional 5-day total forecasts.

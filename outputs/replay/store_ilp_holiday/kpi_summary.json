@@ -1,0 +1,9 @@
+{
+  "method": "store_ilp + leadtime_holiday_policy",
+  "fill": 94.78,
+  "lost": 26641,
+  "waste": 6662,
+  "stock": 37262,
+  "total": 932421,
+  "elapsed_s": 301.6
+}

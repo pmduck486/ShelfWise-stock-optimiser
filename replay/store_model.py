@@ -25,7 +25,9 @@ Settings were fixed before any run (CS2105/_checks/rebuild_trial/PREREGISTERED.m
 here is tuned on the test window.
 """
 
-from datetime import timedelta
+from datetime import date, timedelta
+import json
+from pathlib import Path
 
 import numpy as np
 
@@ -33,6 +35,33 @@ from .baselines import SimplePolicy, _closed
 
 Z95 = 1.645          # pooled warehouse safety factor (95%)
 Z90 = 1.2816         # q90 - q50 = 1.2816 x spread for a normal curve
+
+_POLICY_CACHE = None
+# Major Walmart US retail holidays that cause surge & slump cycles
+HOLIDAYS = [
+    date(2013, 11, 28), date(2013, 12, 25),
+    date(2014, 11, 27), date(2014, 12, 25),
+    date(2015, 11, 26), date(2015, 12, 25),
+    date(2016, 1, 1),
+]
+
+
+def get_holiday_policy(cfg):
+    global _POLICY_CACHE
+    lay = cfg.get('analysis', {}).get('store_ilp', {}).get('layers', {})
+    hp = lay.get('holiday_policy', {})
+    if not hp.get('enabled'):
+        return None
+    if _POLICY_CACHE is None:
+        p_name = hp.get('calibration_file', 'outputs/holiday_policy.json')
+        p_file = Path(p_name)
+        if not p_file.is_absolute():
+            p_file = Path(__file__).resolve().parent.parent / p_name
+        if p_file.exists():
+            _POLICY_CACHE = json.loads(p_file.read_text(encoding='utf-8'))
+        else:
+            _POLICY_CACHE = {}
+    return _POLICY_CACHE
 
 
 def stock_level(cfg, item_id):
@@ -79,6 +108,24 @@ class StoreModel(SimplePolicy):
         horizon = forecast_days(fc, today)
         line = np.zeros(len(keys))
         caps = np.full(len(keys), np.inf)
+
+        # Check holiday policy
+        h_policy = get_holiday_policy(cfg)
+        h_phase = None
+        if h_policy:
+            hp_cfg = cfg['analysis']['store_ilp'].get('layers', {}).get('holiday_policy', {})
+            pre_days = hp_cfg.get('pre_surge_days', 3)
+            post_days = hp_cfg.get('perishable_throttle_days', 2)
+            for h in HOLIDAYS:
+                diff = (today - h).days
+                if -pre_days <= diff <= -1:
+                    h_phase = ('surge', diff)
+                    break
+                elif 1 <= diff <= post_days:
+                    # Lead-time aware: diff=1 (Friday order -> Saturday arrival), diff=2 (Saturday order -> Sunday arrival)
+                    h_phase = ('slump', diff)
+                    break
+
         for j, (s, p) in enumerate(keys):
             item = items[p]
             level = stock_level(cfg, p)
@@ -94,6 +141,22 @@ class StoreModel(SimplePolicy):
                 mean = sum(q50) / horizon
                 caps[j] = sum((q50[t] if t < horizon else mean) for t in range(0, life + 1)
                               if not _closed(today + timedelta(days=t), cfg))
+
+            # Apply holiday lifecycle adjustments if policy is enabled
+            if h_phase is not None and h_policy:
+                p_info = h_policy.get('items', {}).get(p, {})
+                phase_type = h_phase[0]
+                if phase_type == 'surge':
+                    if p_info.get('sensitive'):
+                        m = p_info.get('m_surge', 1.0)
+                        total *= m
+                elif phase_type == 'slump':
+                    # Post-holiday slump throttle applies strictly to perishables to kill dumpster waste
+                    if life is not None:
+                        d = p_info.get('d_post', 0.40)
+                        total *= d
+                        caps[j] *= d
+
             line[j] = total
         return line, caps
 

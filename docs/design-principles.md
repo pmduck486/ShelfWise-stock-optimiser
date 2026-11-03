@@ -2,7 +2,9 @@
 
 > **What this is:** the principles the ML forecaster (Lump 1) is built on, and for each one *how it actually works in the code*: which file, which function, which test. Written for viva and presentation prep. The companion file `decisions.md` lists each individual choice with its evidence.
 >
-> **Status when written (2026-10-30, updated 2026-10-31):** Phases A–E are built (`forecast/data.py`, `baseline.py`, `metrics.py`, `evaluate.py`, `features.py`, `model.py`, `experiments.py`, `postprocess.py`, `review.py`, `tune.py`, `calibrate.py`, `freeze.py`, `predict.py`, `write_forecasts.py`, `report.py`); 163 tests pass on the laptop. Parts still unbuilt (optional layers) are marked **(planned)** and describe `plan/forecaster-build-plan.md`.
+> **Status (updated 2026-11-02, final store-only model):** the forecaster now looks 2 days ahead (rule R2 = 2 days, decision #37), the main order model is `store_ilp` (P18), the code is frozen and the holdout is run in blocks (P19). 299 tests pass. Where this file says "7 days" for the gap or horizon, that was the first design; the current numbers are 2 days.
+>
+> **Status when first written (2026-10-30, updated 2026-10-31):** Phases A–E are built (`forecast/data.py`, `baseline.py`, `metrics.py`, `evaluate.py`, `features.py`, `model.py`, `experiments.py`, `postprocess.py`, `review.py`, `tune.py`, `calibrate.py`, `freeze.py`, `predict.py`, `write_forecasts.py`, `report.py`); 163 tests pass on the laptop. Parts still unbuilt (optional layers) are marked **(planned)** and describe `plan/forecaster-build-plan.md`.
 
 ---
 
@@ -26,7 +28,7 @@
 | # | Principle | One-line meaning |
 |---|---|---|
 | P1 | Fairness first: no peeking | The model only uses what a manager knew on the morning of ordering |
-| P2 | Target-day-backwards inputs | One model serves all 7 days; a date gets the same forecast from any origin |
+| P2 | Target-day-backwards inputs | One model serves the whole horizon (now today + tomorrow; first design 7 days); a date gets the same forecast from any origin |
 | P3 | Statistics from the past only | Codes, normal prices, zero-run rules come from training rows only |
 | P4 | Rules enforced by tests | Each fairness rule has a test that fails the build if broken |
 | P5 | One module, one job | load → baseline → features → model → post-process → calibrate → freeze → write |
@@ -41,6 +43,8 @@
 | P14 | Simple and explainable | Library models, light tuning, every input has a reason |
 | P15 | Report everything | Bad results and weak groups are shown, never hidden |
 | P16 | Don't break teammates | Shared files and the stub contract stay unchanged |
+| P18 | The order model: targets, then a small ILP, then shadow prices | `store_ilp`: newsvendor targets, one-day ILP per store under truck / space / budget limits, LP duals as shadow prices (built 2026-11-02) |
+| P19 | Frozen code, run lists first, holdout in blocks | Layers judged by pre-set tests; code frozen; each holdout block run once from a dated run list; block 3 sealed (built 2026-11-02) |
 | P17 | The two models share one contract and one config | Same forecast file, same service lines, one config, a solver head start that works on the laptop (built 2026-11-01; replay reading both order tables planned) |
 
 ---
@@ -51,7 +55,7 @@
 
 **The rules** (`plan/forecast-training-plan.md`, R1–R12), the main ones:
 - **R1** the test window and holdout are locked; no training step may read them.
-- **R2** store data must be at least 7 days older than the target day.
+- **R2** store data must be at least 2 days older than the target day (it was 7 in the first design; changed when the project became store-only, decision #37). The horizon may never be longer than the gap.
 - **R3** calendar facts may be same-day (published in advance).
 - **R4** statistics come from training rows only.
 - **R6** tuning uses validation only. **R7** freeze before each replay. **R12** reproducible.
@@ -68,20 +72,20 @@
 
 ## P2. Inputs are computed backwards from the target day
 
-**Idea.** Every input for "sales on date *d*" is read from dates at least 7 days before *d* (store data) or from *d* itself (calendar). It never depends on which morning (origin) asked.
+**Idea.** Every input for "sales on date *d*" is read from dates at least 2 days before *d* (store data; 7 in the first design) or from *d* itself (calendar). It never depends on which morning (origin) asked.
 
 **Why it matters.** Three things follow from this one property:
-1. **One model serves the whole 7-day horizon.** No separate "1 day ahead" and "7 days ahead" models.
+1. **One model serves the whole horizon** (today and tomorrow now; 7 days in the first design). No separate "1 day ahead" and "2 days ahead" models.
 2. **The future-poison test is possible:** if we replace every value after the origin with garbage, the forecasts must not change.
 3. **Validation is scored once per target day**, not once per origin, which keeps scoring simple.
 
 **How it works in code** (`forecast/features.py::build_features`):
-- It builds a **dense grid**: one row per store-item, one column per calendar day. "7 days back" is then a column offset, so it means 7 *calendar* days, not 7 *rows* (a missing day can't shift the window).
+- It builds a **dense grid**: one row per store-item, one column per calendar day. "N days back" is then a column offset, so it means N *calendar* days, not N *rows* (a missing day can't shift the window).
 - The grid's newest column is `g1 = newest target − min_lag_days`. **Sales rows newer than that are never placed in the grid**, so the code physically cannot read them.
-- `FEATURE_SOURCES` is a registry: for each store-data input, the fewest days back it reads (`lag_7: 7`, `roll_mean_28: 7`, …). `feature_names` refuses to run if config asks for an input that is not in the registry.
+- `FEATURE_SOURCES` is a registry: for each store-data input, the fewest days back it reads (for example `lag_7: 7`; windows end `min_lag_days` back). `feature_names` refuses to run if config asks for an input that is not in the registry.
 - Calendar inputs come from `_calendar_inputs`, which reads only `calendar.csv`.
 
-**Tests:** `test_future_poison_features` (units ×1000 and prices NaN after the origin, three origins including Thanksgiving week, features identical), `test_feature_age_registry`, `test_feature_age_by_perturbation` (change target−6 → nothing moves; change target−7 → `lag_7` moves), `test_cross_item_perturbation` (other items' recent data can't leak through the store rank), `test_same_target_alone_or_in_batch` (a day's inputs don't depend on which other days are built with it).
+**Tests:** `test_future_poison_features` (units ×1000 and prices NaN after the origin, three origins including Thanksgiving week, features identical), `test_feature_age_registry`, `test_feature_age_by_perturbation` (the fairness fixture sets the gap to 7: change target−6 → nothing moves; change target−7 → `lag_7` moves; a separate test checks the real 2-day setting and that a horizon longer than the gap is refused), `test_cross_item_perturbation` (other items' recent data can't leak through the store rank), `test_same_target_alone_or_in_batch` (a day's inputs don't depend on which other days are built with it).
 
 ---
 
@@ -185,7 +189,9 @@ Built: forecasts.parquet passes test_contract_matches_stub (same columns, dtypes
 - `features.py::empty_shelf_filter` is the P7 hook: while the switch is off it returns rows unchanged; switched on before P7 exists it raises `NotImplementedError` instead of silently doing nothing.
 - Optional layers C and M are built only if the user says yes.
 
-**Tests:** `test_layers_default_off`, `test_p7_hook_off_is_identity`.
+**The store ILP's layers follow the same rule (built 2026-11-02, decision #40):** `config.yaml → analysis.store_ilp.layers` holds `service_floor` (on), `spoilage_cap_in_ilp` (on) and `stock_value_cap` (off, dropped by a pre-set keep/drop test). Each was added alone and judged on the test window by thresholds written before the runs. With every layer off, the core `store_ilp` still runs and reproduces its result exactly.
+
+**Tests:** `test_layers_default_off`, `test_p7_hook_off_is_identity`, `tests/test_store_ilp.py` (17).
 
 ---
 
@@ -265,10 +271,10 @@ Built: forecasts.parquet passes test_contract_matches_stub (same columns, dtypes
 - `seed: 1` in config for every model. A rerun on the same machine is identical; the laptop and the cloud differ in the third decimal (q50 MAE 4.108 vs 4.106 on fold 1), so the final frozen model is made on one machine.
 - `freeze` retrains on train + validation through 2015-10-31 (cutoff 2015-11-01, the first unseen day) with the tuned settings and calibration, then saves `bundle.joblib` and `manifest.json` {cutoff, windows, features, quantiles, params, shifts, seed, sklearn_version, platform, train_rows, config_sha256, created}.
 - Laptop only: `freeze` and `write_forecasts` raise unless platform.system() equals forecast.freeze_platform (Windows); the real freeze took 126 s on 1,226,019 rows.
-- Config fingerprint: `config_sha256` hashes the `forecast:` section + `data.windows` as sorted JSON, with the paths (model_dir, scores_dir) and freeze_platform left out, so comments and line endings don't change it.
+- Config fingerprint: `config_sha256` hashes the `forecast:` section + `data.windows` as sorted JSON, with all path settings counted by **file name only** (decision #36, so the frozen model loads in any folder or GitHub clone) and freeze_platform left out, so comments and line endings don't change it.
 - `load_frozen` refuses a manifest whose cutoff is after the replay start, or whose config hash or sklearn version differs.
-- Train once for the test replay; the holdout gets one more retrain with the same settings, run once after code freeze (R9b).
-- **Order model runs (planned, decision #32):** the solver stops on a time limit, so two runs of the same command can differ slightly (a 3-day check differed on day 3). Builds and tests use a 15 s budget per day; the core results in the slides come from **one** logged run at the production 60 s budget with a 1% gap target, and 15 s numbers are never mixed into them.
+- Train once for the test replay; each holdout block gets one more retrain with the same settings, cutoff at the block start, run once after code freeze (R9b, P19).
+- **Order model runs (updated, decisions #32, #39):** the solver stops on a time limit, so two runs of the same command can differ slightly. The final store ILP is a small one-day problem per store with a 10 s limit and reached the same numbers when rerun (the core `store_ilp` result was reproduced exactly in the layer test). The 60 s warehouse-optimizer run planned earlier was not needed once the project became store-only.
 
 **Tests:** `test_manifest_has_all_fields`, `test_frozen_guard_refuses_late_cutoff`, `test_frozen_guard_refuses_changed_config`, `test_frozen_guard_refuses_other_sklearn`, `test_freeze_refuses_other_platform`, `test_reproducible_same_seed`, `test_frozen_bundle_carries_shifts` (`tests/test_forecast_freeze.py`).
 
@@ -294,8 +300,8 @@ Built: forecasts.parquet passes test_contract_matches_stub (same columns, dtypes
 - `score` always reports all / perishable / slow, and `evaluate.py` adds fold 1's peak days (2014-11-26, 12-23, 12-24) separately.
 - Products are never dropped after seeing results.
 - Test-window scores are produced only after the replay; every test run is logged; the holdout runs exactly once and is reported as it comes out (R9a, R9b).
-- **The first full replay is reported as it came out (decision #35):** the optimizer has the lowest stock and the lowest cost-plus-lost-sales score but lower service than both top-up rules; both facts go on the slides. Fixes to its settings must be chosen on data before the test window, not on these numbers.
-- **Write down the holdout runs first (planned, decision #33):** before the holdout is opened, a dated file lists exactly what it will run: the core with every switch off and the final version with the finished layers on, each against the same 3 simple rules. Both results are reported as they come out; no version is added, dropped or re-tuned afterwards. Until then, layers are judged on the test window only.
+- **The first full replay is reported as it came out (decision #35, the old warehouse optimizer):** it had the lowest stock and the lowest cost-plus-lost-sales score but lower service than both top-up rules. That weakness is part of why the project became store-only (#37). The same honesty applies to the final model: `store_ilp` holds the most store stock, and all shadow prices of truck, space and budget are 0 (#39, #41); both are stated, not hidden.
+- **Write down the holdout runs first (built, decisions #33, #41):** before each holdout block is read, a dated run list (`holdout/RUN_LIST_block1.md`, `block2.md`) says exactly what runs: five methods, frozen settings, same start stock. Results are reported as they come out (block 1: -5.2%, block 2: -7.1% against the best simple rule); nothing is added, dropped or re-tuned afterwards. Block 3 stays sealed.
 - Known side effects are written down (e.g. the baselines' low early-January forecasts after 25 Dec).
 - Error review (built, Task 5; the worst store-items are items that stopped selling for good): the 20 worst store-items per fold, ranked by error relative to their own sales, with the stub's error and their traits (`worst_items` in `forecast/review.py`).
 - Leak check on the trained model (built, Task 5; passed at gate C): a shuffle test on fold 2 shows which inputs the model relies on (`shuffle_importance`); a fold 2 q50 MAE below 3.6 is treated as a suspected leak and stops the work.
@@ -315,7 +321,7 @@ Built: forecasts.parquet passes test_contract_matches_stub (same columns, dtypes
 
 ---
 
-## P17. The two models share one contract and one config (built 2026-11-01; the replay part planned)
+## P17. The two models share one contract and one config (built 2026-11-01; replay part built; warehouse level now off, see #37)
 
 **Idea.** The forecaster and the order model were built on different machines. They only work together if they agree on three things: the file the forecaster writes, which line each product is stocked to, and how the solver runs on the machine that produces the final results. Each agreement is checked by a test or a measured run, not by trust. Details and numbers: `decisions.md` #30 and #31.
 
@@ -324,10 +330,41 @@ Built: forecasts.parquet passes test_contract_matches_stub (same columns, dtypes
 - **One rule for service lines:** `forecast.service_lines` (the line the forecaster is scored on) must equal `order_model.service_levels` (the line the order model stocks to): perishables and the top 30 on q95, under 5 units/day on q80, the rest on q90. They agree for all 120 items, and since both sections sit in the same `config.yaml`, `test_forecaster_service_lines_match_order_model_service_levels` (in `tests/test_core_spec_gaps.py`) fails the build if anyone changes one side only (built).
 - **One config:** `config.yaml` now holds `data:`, `network:`, `stubs:`, `forecast:` and the order model's `order_model:` section, which was appended word for word. Adding it changed none of the other sections and not the frozen forecaster's fingerprint (built).
 - **The solver's head start must work on the freeze platform (Windows):** the order model hands CBC a quick starting plan. On Windows that hand-over failed silently, because CBC couldn't open PuLP's absolute temp path. `optimize/cbc.py` points PuLP at a relative scratch folder (`.cbc_scratch`, gitignored); PuLP uses random file names and deletes the files, so runs can't clash and nothing piles up (built; keepFiles was tested and rejected, see `decisions.md` #31). This matters because the final results are produced on the laptop, the same rule as the forecaster's laptop-only freeze (P13).
-- **Read both order tables:** `policy.decide` returns a Decision with store orders **and** warehouse orders; the replay carries out both (built 2026-11-01, Lump 4).
+- **Read both order tables:** `policy.decide` returns a Decision with store orders **and** warehouse orders; the replay carries out both (built 2026-11-01, Lump 4). In the final store-only model the warehouse table is unused (`replay.warehouse: off`, decision #37); the forecast file now has 2 days per origin, 134,400 rows.
 - **One engine, one set of physics for every method (built, decision #34):** the 3 simple rules and the optimizer all go through her `execute_day`, so deliveries, Christmas, whole packs, the minimum order, warehouse stock, trucks, the budget, sales and costs are identical. The simple rules see sales only through a `PastSales` object that refuses any day on or after today, so peeking is impossible by construction (future-poison test for all 4 methods).
 
 **Tests (all built and passing, 229 in the full suite):** `test_contract_matches_stub`; `test_forecaster_service_lines_match_order_model_service_levels` and the other 4 tests in `test_core_spec_gaps.py`; `test_warm_start_is_read_by_cbc_single_model` and `test_warm_start_is_read_by_cbc_in_every_dc_block` (`test_warm_start_reaches_cbc.py`, which fail on the unfixed code).
+
+---
+
+## P18. The order model: targets, then a small ILP, then shadow prices (built 2026-11-02, decisions #38 to #40)
+
+**Idea.** Split the ordering decision into three steps that each have one job and one thing to explain: (1) *how much should be on the shelf?* (2) *how many whole cartons can we actually send under the limits?* (3) *what is each limit worth?*
+
+**How it works.**
+- **Targets** (`replay/store_model.py`): newsvendor over today + tomorrow. Long-life items to q95; perishables at the cost-based level Cu/(Cu+Co) ≈ 0.63; spoilage cap from the shelf life.
+- **One-day ILP per store** (`analysis/store_ilp.py`): integer cartons per product, minimising cost under truck capacity, shelf space and a daily budget. Layers: 90% service floor (soft, penalty 10× the lost-sale cost) and the spoilage cap as a constraint.
+- **Shadow prices:** fix the integer decisions, re-solve as an LP, read the duals; written to `shadow_prices.csv` on every run. At current limits truck, space and budget are 0 on every store-day; the service floor is active on 965 store-item-days in the test window (mean about Rs 28.6 per unit).
+- **What-ifs** (`analysis/whatif.py`): one setting changed per run, for sensitivity only, never used to choose a setting.
+- **Same physics as the baselines:** all methods run through the same `execute_day` and independent audit (P17), so differences come from the ordering rule only.
+
+**Tests:** `tests/test_store_ilp.py` (17), `tests/test_store_only.py`, and the daily rule checks that run inside every replay.
+
+---
+
+## P19. Frozen code, run lists first, holdout in blocks (built 2026-11-02, decisions #40, #41)
+
+**Idea.** A result only proves something if nobody could have adjusted the model after seeing it. So choices are made by tests written first, then the code is frozen, then unseen data is opened a block at a time.
+
+**How it works.**
+- **Keep/drop tests written before the runs** (`PREREGISTERED.md` for the rebuild and for the layers); the stock-cap layer failed its test and was dropped.
+- **Code freeze (2026-11-02 09:57):** no change unless something breaks, and then the user is told first.
+- **Holdout in three blocks**, made by `holdout/make_block.py`, which writes config copies with only dates and folders changed, checks that earlier sales rows and the item list are identical, retrains the forecaster once to the block start and freezes it.
+- **A run list per block, dated before any block data is read**, then one run, reported whatever it shows. Block 3 (3 Apr to 22 May 2016) is still sealed.
+
+**Evidence:** block 1 and block 2 both ran with every rule check and the audit passing; `store_ilp` was 5.2% and 7.1% cheaper than the best simple rule (#41).
+
+**Tests:** `test_config_hash_same_in_any_folder` and the freeze tests (P13); the data-identity checks run inside `make_block.py finish`.
 
 ---
 
@@ -336,10 +373,10 @@ Built: forecasts.parquet passes test_contract_matches_stub (same columns, dtypes
 1. **Load safely** (`data.py`): config, sales (holdout refused), items, calendar.
 2. **Fit statistics on training rows only** (`fit_encoders`, `zero_run_stats`, with a cutoff).
 3. **Pick training rows** (`training_rows`): drop 25 Dec (long zero runs are kept since decision 26; the drop is a switch).
-4. **Build inputs** (`build_features`): dense grid, 25 Dec as missing, lags / averages / prices ending 7 days back, calendar for the target day, who-codes; float32.
+4. **Build inputs** (`build_features`): dense grid, 25 Dec as missing, lags / averages / prices ending at least 2 days back, calendar for the target day, who-codes; float32.
 5. **Train four quantile models** (`model.py`), one per line, all items together.
 6. **Post-process** (`postprocess.py`): sort lines, clip at 0, set 25 Dec to 0.
 7. **Tune and calibrate** on both validation folds (`tune.py`, `calibrate.py`).
 8. **Freeze** with a manifest (`freeze.py`, laptop only).
-9. **Write** `forecasts.parquet` for 56 origins × 7 days × 1,200 store-items = 470,400 rows (`write_forecasts.py`, built 2026-10-31).
+9. **Write** `forecasts.parquet` for 56 origins × 2 days × 1,200 store-items = 134,400 rows (`write_forecasts.py`; first design 7 days = 470,400 rows).
 10. **Score** against both baselines; test-window scores only after the replay.
