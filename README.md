@@ -2,6 +2,10 @@
 
 CS2105 Optimization Techniques course project, IIT Patna.
 
+[![Live Dashboard](https://img.shields.io/badge/Live%20Dashboard-Vercel-success?style=for-the-badge&logo=vercel)](https://shelf-wise-stock-optimiser.vercel.app/)
+
+> **Live Production Dashboard:** [https://shelf-wise-stock-optimiser.vercel.app/](https://shelf-wise-stock-optimiser.vercel.app/)
+
 A grocery chain has to decide every morning how many cartons of each product to send to each
 store. If it sends too few, shelves go empty and sales are lost. If it sends too much, money
 sits in stock and perishables spoil. RetailOps makes that decision for 10 stores × 120 food

@@ -1,5 +1,9 @@
 # RetailOps dashboard
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-success?style=flat&logo=vercel)](https://shelf-wise-stock-optimiser.vercel.app/)
+
+> **Live Production URL:** [https://shelf-wise-stock-optimiser.vercel.app/](https://shelf-wise-stock-optimiser.vercel.app/)
+
 An animated, static website that shows the RetailOps results: the method comparison, the
 8-week replay as a calendar, one store-item decision step by step ("decision theatre"), the
 forecaster's ranges, shadow prices and what-ifs, the layer tests, and a plain-language pipeline.
